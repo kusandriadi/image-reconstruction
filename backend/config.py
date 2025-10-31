@@ -8,12 +8,16 @@ by environment variables.
 """
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Set
 
 from .config_loader import get_config_loader
+
+# Get logger
+logger = logging.getLogger("image_reconstruction.config")
 
 
 @dataclass
@@ -100,6 +104,7 @@ class Config:
             >>> config.max_upload_mb
             20.0
         """
+        logger.info("Loading application configuration from config.json")
         loader = get_config_loader()
         base_dir = Path(__file__).resolve().parent
 
@@ -117,8 +122,10 @@ class Config:
         models_dir = project_root / models_dir_rel
 
         # Create all required directories
+        logger.info("Creating required directories")
         for d in (uploads_dir, outputs_dir, models_dir):
             d.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"  ✓ {d}")
 
         # Read model path from config
         model_path_str = loader.get("backend.model.path", "backend/data/models/model.pth")
@@ -135,6 +142,12 @@ class Config:
         allowed_ext_list = loader.get("backend.upload.allowed_extensions", [
             ".png", ".jpg", ".jpeg", ".webp"
         ])
+
+        logger.info(f"Configuration loaded successfully")
+        logger.info(f"  Model path: {model_path}")
+        logger.info(f"  Max upload size: {max_upload_mb}MB")
+        logger.info(f"  CORS origins: {allowed_origins}")
+        logger.info(f"  Allowed extensions: {allowed_ext_list}")
 
         return Config(
             base_dir=base_dir,

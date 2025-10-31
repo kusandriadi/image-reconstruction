@@ -6,11 +6,15 @@ reporting, and cancellation.
 """
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Dict, Optional, Callable
 
 from .reconstructor import Reconstructor, Cancelled
+
+# Get logger
+logger = logging.getLogger("image_reconstruction.jobs")
 
 
 class JobManager:
@@ -54,11 +58,13 @@ class JobManager:
             uploads_dir: Directory path containing uploaded input files.
             outputs_dir: Directory path where results will be saved.
         """
+        logger.info("Initializing JobManager")
         self.reconstructor = reconstructor
         self.uploads_dir = uploads_dir
         self.outputs_dir = outputs_dir
         self._jobs: Dict[str, Dict] = {}
         self._lock = threading.Lock()
+        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}")
 
     def _update(self, job_id: str, **kwargs):
         """Thread-safe update of job metadata.
@@ -90,6 +96,7 @@ class JobManager:
             ...     input_path="/uploads/abc123_photo.png"
             ... )
         """
+        logger.info(f"Enqueueing job {job_id}: {input_path}")
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
@@ -105,6 +112,7 @@ class JobManager:
         # Start background worker thread for this job
         t = threading.Thread(target=self._worker, args=(job_id,), daemon=True)
         t.start()
+        logger.debug(f"Worker thread started for job {job_id}")
 
     def cancel(self, job_id: str) -> bool:
         """Request cancellation of a running or queued job.
@@ -126,13 +134,16 @@ class JobManager:
             ... else:
             ...     print("Job not found or already finished")
         """
+        logger.info(f"Cancel requested for job {job_id}")
         with self._lock:
             job = self._jobs.get(job_id)
             if not job or job["status"] in ("completed", "failed", "cancelled"):
+                logger.warning(f"Cannot cancel job {job_id}: not found or already finished")
                 return False
             job["cancel"] = True
             job["message"] = "cancelling"
             job["status"] = "cancelling"
+            logger.info(f"Job {job_id} marked for cancellation")
         return True
 
     def get(self, job_id: str) -> Optional[Dict]:
@@ -176,9 +187,12 @@ class JobManager:
             This is an internal method called by enqueue() and should not be
             called directly.
         """
+        logger.info(f"Worker starting for job {job_id}")
+
         def progress(pct: int, msg: str):
             """Progress callback to update job metadata."""
             self._update(job_id, progress=pct, message=msg)
+            logger.debug(f"Job {job_id}: {pct}% - {msg}")
 
         def cancelled() -> bool:
             """Cancellation check callback."""
@@ -188,6 +202,7 @@ class JobManager:
         self._update(job_id, status="running", message="starting")
         job = self.get(job_id)
         try:
+            logger.info(f"Job {job_id}: Starting reconstruction")
             # Run the reconstruction process
             self.reconstructor.reconstruct(
                 job["input_path"],
@@ -196,8 +211,11 @@ class JobManager:
                 cancelled=cancelled
             )
             self._update(job_id, status="completed", message="completed")
+            logger.info(f"Job {job_id}: Completed successfully")
         except Cancelled:
             self._update(job_id, status="cancelled", message="cancelled by user")
+            logger.info(f"Job {job_id}: Cancelled by user")
         except Exception as e:
             self._update(job_id, status="failed", message="failed", error=str(e))
+            logger.error(f"Job {job_id}: Failed with error: {e}", exc_info=True)
 
