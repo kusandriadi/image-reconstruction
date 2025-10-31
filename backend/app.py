@@ -6,6 +6,7 @@ and result retrieval.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
@@ -14,9 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .config import Config
+from .logger import setup_logger
 from .services.jobs import JobManager
 from .services.reconstructor import Reconstructor
 from .services.validators import UploadValidator
+
+# Get logger
+logger = logging.getLogger("image_reconstruction.app")
 
 
 class BackendApp:
@@ -45,11 +50,13 @@ class BackendApp:
         Args:
             config: Configuration instance containing all application settings.
         """
+        logger.info("Initializing BackendApp")
         self.config = config
         self.app = FastAPI(title="Image Reconstruction API")
         self._configure_cors()
 
         # Core services - dependency injection
+        logger.info("Initializing core services")
         self.reconstructor = Reconstructor(model_path=str(self.config.model_path))
         self.jobs = JobManager(
             reconstructor=self.reconstructor,
@@ -64,6 +71,7 @@ class BackendApp:
         )
 
         self._register_routes()
+        logger.info("BackendApp initialization complete")
 
     def _configure_cors(self) -> None:
         """Configure CORS middleware for the FastAPI application.
@@ -110,13 +118,17 @@ class BackendApp:
                 HTTPException 500: Internal server error during processing
             """
             job_id = uuid.uuid4().hex
+            logger.info(f"API: POST /api/jobs - Creating job {job_id}")
             try:
                 upload_path = await self.validator.save(job_id, file)
                 self.jobs.enqueue(job_id=job_id, input_path=str(upload_path))
+                logger.info(f"API: Job {job_id} created successfully")
                 return {"job_id": job_id}
-            except HTTPException:
+            except HTTPException as e:
+                logger.warning(f"API: Job {job_id} creation failed: {e.detail}")
                 raise
             except Exception as e:
+                logger.error(f"API: Job {job_id} creation error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.get("/api/jobs/{job_id}")
@@ -141,8 +153,10 @@ class BackendApp:
             Raises:
                 HTTPException 404: Job not found
             """
+            logger.debug(f"API: GET /api/jobs/{job_id}")
             job = self.jobs.get(job_id)
             if not job:
+                logger.warning(f"API: Job {job_id} not found")
                 raise HTTPException(status_code=404, detail="Job not found")
             return job
 
@@ -161,9 +175,12 @@ class BackendApp:
             Raises:
                 HTTPException 404: Job not found or already finished
             """
+            logger.info(f"API: DELETE /api/jobs/{job_id} - Cancel requested")
             ok = self.jobs.cancel(job_id)
             if not ok:
+                logger.warning(f"API: Cannot cancel job {job_id}")
                 raise HTTPException(status_code=404, detail="Job not found or already finished")
+            logger.info(f"API: Job {job_id} cancelled")
             return {"cancelled": True}
 
         @app.get("/api/jobs/{job_id}/result")
@@ -183,15 +200,20 @@ class BackendApp:
                 HTTPException 409: Job not completed yet (still queued/running)
                 HTTPException 500: Result file missing or corrupted
             """
+            logger.info(f"API: GET /api/jobs/{job_id}/result")
             meta = self.jobs.get(job_id)
             if not meta:
+                logger.warning(f"API: Job {job_id} not found for result download")
                 raise HTTPException(status_code=404, detail="Job not found")
             if meta.get("status") != "completed":
+                logger.warning(f"API: Job {job_id} not completed (status: {meta.get('status')})")
                 return JSONResponse(status_code=409, content={"detail": "Job not completed"})
             out_path = meta.get("output_path")
             if not out_path or not Path(out_path).exists():
+                logger.error(f"API: Result file missing for job {job_id}: {out_path}")
                 raise HTTPException(status_code=500, detail="Result missing")
             filename = Path(out_path).name
+            logger.info(f"API: Serving result for job {job_id}: {filename}")
             return FileResponse(out_path, filename=filename, media_type="image/png")
 
         @app.get("/api/health")
@@ -208,6 +230,7 @@ class BackendApp:
                     "device": "cuda"
                 }
             """
+            logger.debug("API: GET /api/health")
             return {
                 "status": "ok",
                 "model_loaded": self.reconstructor.model_loaded,
@@ -285,8 +308,20 @@ def create_app() -> FastAPI:
         >>> # Use with uvicorn:
         >>> # uvicorn backend.app:app --reload
     """
+    # Setup logger first
+    setup_logger()
+
+    logger.info("=" * 60)
+    logger.info("Image Reconstruction API - Starting")
+    logger.info("=" * 60)
+
     cfg = Config.from_env()
     backend = BackendApp(cfg)
+
+    logger.info("=" * 60)
+    logger.info("Image Reconstruction API - Ready")
+    logger.info("=" * 60)
+
     return backend.app
 
 

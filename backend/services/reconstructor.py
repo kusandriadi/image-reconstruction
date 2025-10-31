@@ -7,17 +7,23 @@ progress callbacks, and cancellation handling.
 from __future__ import annotations
 
 import io
+import logging
 import os
 from pathlib import Path
 from typing import Callable, Optional
 
 from PIL import Image
 
+# Get logger
+logger = logging.getLogger("image_reconstruction.reconstructor")
+
 try:
     import torch
     TORCH_AVAILABLE = True
-except Exception:
+    logger.info("PyTorch is available")
+except Exception as e:
     TORCH_AVAILABLE = False
+    logger.warning(f"PyTorch is not available: {e}. Will use pass-through mode.")
 
 
 class Reconstructor:
@@ -54,6 +60,7 @@ class Reconstructor:
         Args:
             model_path: Path to the PyTorch model file (.pt or .pth format).
         """
+        logger.info(f"Initializing Reconstructor with model path: {model_path}")
         self.model_path = str(model_path)
         self.model_loaded = False
         self.model: Optional[object] = None
@@ -63,6 +70,7 @@ class Reconstructor:
         if TORCH_AVAILABLE:
             if requested in ("cuda", "cpu"):
                 if requested == "cuda" and not torch.cuda.is_available():
+                    logger.warning("CUDA requested but not available, falling back to CPU")
                     self.device = "cpu"
                 else:
                     self.device = requested
@@ -70,6 +78,8 @@ class Reconstructor:
                 self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = "cpu"
+
+        logger.info(f"Device selected: {self.device}")
 
     def _lazy_load(self, progress: Optional[Callable[[int, str], None]] = None):
         """Lazily load the PyTorch model on first use.
@@ -88,42 +98,63 @@ class Reconstructor:
             called directly.
         """
         if self.model_loaded:
+            logger.debug("Model already loaded, skipping")
             return
+
+        logger.info(f"Loading model from {self.model_path}")
         if progress:
             progress(5, "loading model")
+
         if TORCH_AVAILABLE and Path(self.model_path).exists():
             # Load model based on file extension
             try:
+                logger.info(f"Loading model on device: {self.device}")
                 if self.model_path.endswith(".pt"):
+                    logger.debug("Loading TorchScript model (.pt)")
                     self.model = torch.jit.load(self.model_path, map_location=self.device)
                 else:
+                    logger.debug("Loading PyTorch model (.pth)")
                     self.model = torch.load(self.model_path, map_location=self.device)
-            except Exception:
+                logger.info("Model loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load model on {self.device}: {e}")
                 # If loading fails, fall back to CPU attempt before giving up
                 if self.device != "cpu":
                     try:
+                        logger.info("Attempting to load model on CPU")
                         self.model = torch.load(self.model_path, map_location="cpu")
                         self.device = "cpu"
-                    except Exception:
+                        logger.info("Model loaded successfully on CPU")
+                    except Exception as e2:
+                        logger.error(f"Failed to load model on CPU: {e2}")
                         self.model = None
                 else:
                     self.model = None
 
             # Set model to evaluation mode and move to device
             if hasattr(self.model, "eval"):
+                logger.debug("Setting model to evaluation mode")
                 self.model.eval()
             if hasattr(self.model, "to"):
                 try:
+                    logger.debug(f"Moving model to {self.device}")
                     self.model = self.model.to(self.device)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Failed to move model to device: {e}")
                     # Keep as is if transfer fails
                     pass
         else:
+            if not TORCH_AVAILABLE:
+                logger.warning("PyTorch not available, using pass-through mode")
+            elif not Path(self.model_path).exists():
+                logger.warning(f"Model file not found: {self.model_path}, using pass-through mode")
             # Fallback: no real model, will use pass-through mode
             self.model = None
+
         if progress:
             progress(15, f"model ready on {self.device}")
         self.model_loaded = True
+        logger.info(f"Model initialization complete. Mode: {'PyTorch' if self.model else 'Pass-through'}")
 
     def reconstruct(
         self,
@@ -178,17 +209,23 @@ class Reconstructor:
             if progress:
                 progress(pct, msg)
             if cancelled and cancelled():
+                logger.info(f"Reconstruction cancelled for {input_path}")
                 raise Cancelled()
+
+        logger.info(f"Starting reconstruction: {input_path} -> {output_path}")
 
         # Load model lazily on first use
         self._lazy_load(progress)
 
         # Read and convert input image to RGB
         step(20, "reading input")
+        logger.debug(f"Reading input image: {input_path}")
         img = Image.open(input_path).convert("RGB")
+        logger.debug(f"Input image size: {img.size}")
 
         # Preprocess image into tensor
         step(35, "preprocessing")
+        logger.debug("Preprocessing image to tensor")
         tensor = None
         if TORCH_AVAILABLE:
             import torchvision.transforms as T  # type: ignore
@@ -196,29 +233,37 @@ class Reconstructor:
             tensor = transform(img).unsqueeze(0)
             try:
                 tensor = tensor.to(self.device)
-            except Exception:
+                logger.debug(f"Tensor moved to {self.device}, shape: {tensor.shape}")
+            except Exception as e:
+                logger.warning(f"Failed to move tensor to device: {e}")
                 # If device transfer fails, keep on CPU
                 pass
 
         # Run model inference
         step(70, "running model")
         if TORCH_AVAILABLE and self.model is not None and tensor is not None:
+            logger.info("Running model inference")
             with torch.no_grad():
                 out = self.model(tensor)
+            logger.debug("Model inference complete")
             # Normalize output into PIL Image
             if isinstance(out, (list, tuple)):
                 out = out[0]
             if hasattr(out, "detach"):
                 out = out.detach().cpu().squeeze(0)
             out_img = T.ToPILImage()(out)
+            logger.debug(f"Output image size: {out_img.size}")
         else:
             # Fallback: no model available, return input image (pass-through)
+            logger.info("Using pass-through mode (no model)")
             out_img = img
 
         # Save reconstructed image
         step(90, "writing output")
+        logger.debug(f"Saving output to: {output_path}")
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         out_img.save(output_path, format="PNG")
+        logger.info(f"Reconstruction complete: {output_path}")
 
         step(100, "done")
 

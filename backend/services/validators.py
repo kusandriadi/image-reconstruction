@@ -6,11 +6,15 @@ for size, MIME type, and integrity. It also handles filename sanitization for se
 from __future__ import annotations
 
 import io
+import logging
 from pathlib import Path
 from typing import Set
 
 from fastapi import HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
+
+# Get logger
+logger = logging.getLogger("image_reconstruction.validators")
 
 
 class UploadValidator:
@@ -165,17 +169,31 @@ class UploadValidator:
             >>> print(upload_path)
             Path('uploads/abc123_photo.png')
         """
+        logger.info(f"Validating upload for job {job_id}: {file.filename}")
+
         if not file.filename:
+            logger.warning(f"Job {job_id}: No filename provided")
             raise HTTPException(status_code=400, detail="No file uploaded")
+
+        # Validate MIME type
         self._check_type(file.content_type)
+
+        # Read and validate content
         content = await file.read()
+        file_size_mb = len(content) / (1024 * 1024)
+        logger.debug(f"Job {job_id}: File size: {file_size_mb:.2f}MB")
+
         self._check_size(content)
         self._check_image_decodable(content)
 
         # Sanitize filename and prefix with job ID for uniqueness
         original_name = self.sanitize_filename(file.filename, self.allowed_ext)
         upload_path = self.uploads_dir / f"{job_id}_{original_name}"
+
+        logger.info(f"Job {job_id}: Saving upload to {upload_path}")
         with open(upload_path, 'wb') as f:
             f.write(content)
+
+        logger.info(f"Job {job_id}: Upload validated and saved successfully")
         return upload_path
 
