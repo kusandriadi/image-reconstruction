@@ -7,12 +7,64 @@ This repo includes a minimal, separate frontend and backend to upload an image, 
 
 ## Navigasi Cepat
 
+- [Configuration](#configuration)
 - [Quick Start](#quick-start)
   - [Backend (Windows, PowerShell)](#backend-windows-powershell)
   - [Backend (macOS/Linux, bash)](#backend-macoslinux-bash)
   - [Frontend (Static Server)](#frontend-static-server)
 - [Single Script (Windows, Linux, macOS)](#single-script-windows-linux-macos)
 - [Notes](#notes)
+
+## Configuration
+
+This project uses a **centralized configuration system** via `config.json` in the project root.
+
+### Quick Config
+
+Edit `config.json` to change any settings for both backend and frontend:
+
+```json
+{
+  "backend": {
+    "port": 8000,
+    "model": {
+      "path": "backend/data/models/model.pth",
+      "device": "auto"
+    },
+    "upload": {
+      "max_size_mb": 10
+    }
+  },
+  "frontend": {
+    "polling": {
+      "interval_ms": 800
+    }
+  }
+}
+```
+
+**Benefits:**
+- ✅ Single source of truth for all configuration
+- ✅ Environment variables can override any setting
+- ✅ No code changes needed to modify settings
+- ✅ Frontend automatically syncs with backend config
+
+**See [CONFIG.md](CONFIG.md) for complete configuration guide.**
+
+### Environment Variable Override
+
+Any config value can be overridden:
+
+```bash
+# Override model path
+export BACKEND_MODEL_PATH="custom/model.pth"
+
+# Override max upload size
+export BACKEND_UPLOAD_MAX_SIZE_MB=20
+
+# Override polling interval
+export FRONTEND_POLLING_INTERVAL_MS=1000
+```
 
 ## Quick Start
 
