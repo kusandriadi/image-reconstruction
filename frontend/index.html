@@ -33,7 +33,8 @@
 
   <script src="script.js"></script>
   <script>
-    window.BACKEND_BASE = localStorage.getItem('BACKEND_BASE') || 'http://localhost:8000';
+    // Allow localStorage to override backend URL if set
+    window.BACKEND_BASE = localStorage.getItem('BACKEND_BASE');
   </script>
 </body>
 </html>

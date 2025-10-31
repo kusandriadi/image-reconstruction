@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Image Reconstruction API",
+    "version": "1.0.0",
+    "description": "Image reconstruction service using PyTorch models"
+  },
+  "backend": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": false,
+    "model": {
+      "path": "backend/data/models/model.pth",
+      "device": "auto",
+      "device_options": ["auto", "cpu", "cuda"]
+    },
+    "upload": {
+      "max_size_mb": 10,
+      "allowed_mime_types": [
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/webp"
+      ],
+      "allowed_extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp"
+      ]
+    },
+    "cors": {
+      "allowed_origins": ["*"],
+      "allow_credentials": true,
+      "allow_methods": ["*"],
+      "allow_headers": ["*"]
+    },
+    "directories": {
+      "data_dir": "backend/data",
+      "uploads_dir": "backend/data/uploads",
+      "outputs_dir": "backend/data/outputs",
+      "models_dir": "backend/data/models"
+    }
+  },
+  "frontend": {
+    "port": 5173,
+    "backend_url": "http://localhost:8000",
+    "auto_open_browser": true,
+    "file_input": {
+      "accept": "image/*"
+    },
+    "polling": {
+      "interval_ms": 800,
+      "retry_attempts": 3
+    },
+    "ui": {
+      "title": "Image Reconstruction",
+      "labels": {
+        "input": "Input Image",
+        "output": "Output",
+        "ok_button": "OK",
+        "cancel_button": "Cancel",
+        "download_button": "Download Result"
+      },
+      "messages": {
+        "uploading": "Uploading...",
+        "cancelling": "Cancelling...",
+        "file_too_large": "File too large (max {max_size}MB)",
+        "file_type_not_allowed": "File type not allowed. Use: {allowed_types}",
+        "polling_error": "Polling error: {error}",
+        "create_job_failed": "Failed to create job"
+      },
+      "preview_enabled": true,
+      "download_enabled": true,
+      "show_progress_bar": true,
+      "preview_alt_text": "Output preview"
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}

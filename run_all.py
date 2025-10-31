@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import json
 import os
 import platform
 import shutil
@@ -19,6 +20,21 @@ BACKEND_DIR = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
 REQ_FILE = BACKEND_DIR / "requirements.txt"
 VENV_DIR = ROOT / ".venv"
+CONFIG_FILE = ROOT / "config.json"
+
+
+def load_config():
+    """Load configuration from config.json."""
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Warning: Could not load config.json: {e}")
+        # Return minimal defaults if config file is missing
+        return {
+            "backend": {"host": "0.0.0.0", "port": 8000},
+            "frontend": {"port": 5173, "auto_open_browser": True}
+        }
 
 
 def venv_python(venv: Path) -> Path:
@@ -65,16 +81,32 @@ def terminate(proc: subprocess.Popen):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run backend (FastAPI) and frontend (static) together")
-    parser.add_argument("--backend-host", default="0.0.0.0", help="Backend host (default 0.0.0.0)")
-    parser.add_argument("--backend-port", type=int, default=8000, help="Backend port (default 8000)")
-    parser.add_argument("--frontend-port", type=int, default=5173, help="Frontend port (default 5173)")
-    parser.add_argument("--device", choices=["cpu", "cuda"], default=None, help="Force device for backend model")
+    # Load configuration from config.json
+    config = load_config()
+
+    # Get defaults from config
+    default_backend_host = config.get("backend", {}).get("host", "0.0.0.0")
+    default_backend_port = config.get("backend", {}).get("port", 8000)
+    default_frontend_port = config.get("frontend", {}).get("port", 5173)
+    default_auto_open = config.get("frontend", {}).get("auto_open_browser", True)
+    default_reload = config.get("backend", {}).get("reload", False)
+
+    parser = argparse.ArgumentParser(
+        description="Run backend (FastAPI) and frontend (static) together",
+        epilog="Note: Default values are loaded from config.json and can be overridden with arguments or environment variables."
+    )
+    parser.add_argument("--backend-host", default=default_backend_host, help=f"Backend host (default from config: {default_backend_host})")
+    parser.add_argument("--backend-port", type=int, default=default_backend_port, help=f"Backend port (default from config: {default_backend_port})")
+    parser.add_argument("--frontend-port", type=int, default=default_frontend_port, help=f"Frontend port (default from config: {default_frontend_port})")
+    parser.add_argument("--device", choices=["cpu", "cuda", "auto"], default=None, help="Force device for backend model")
     parser.add_argument("--model-path", default=None, help="Path to .pth/.pt model file")
     parser.add_argument("--max-upload-mb", type=int, default=None, help="Max upload size in MB")
     parser.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
-    parser.add_argument("--reload", action="store_true", help="Run backend with --reload")
+    parser.add_argument("--reload", action="store_true", default=default_reload, help=f"Run backend with --reload (default from config: {default_reload})")
     args = parser.parse_args()
+
+    # Determine if browser should be opened (config default, unless --no-browser is specified)
+    should_open_browser = default_auto_open and not args.no_browser
 
     # Ensure dirs exist for backend data
     for d in [BACKEND_DIR / "data" / "uploads", BACKEND_DIR / "data" / "outputs", BACKEND_DIR / "data" / "models"]:
@@ -116,12 +148,14 @@ def main():
     print("\nServices running:")
     print(f"- Backend: http://localhost:{args.backend_port}")
     print(f"- Frontend: {frontend_url}")
+    print(f"\nConfiguration loaded from: {CONFIG_FILE}")
 
-    if not args.no_browser:
+    if should_open_browser:
+        print("Opening browser...")
         try:
             webbrowser.open(frontend_url)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Could not open browser: {e}")
 
     try:
         # Wait on children; if either exits, exit
