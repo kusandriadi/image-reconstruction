@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Reconstruction</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Image Reconstruction</h1>
+
+    <div class="card">
+      <label class="label">Input Image</label>
+      <input type="file" id="fileInput" accept="image/*" />
+      <div class="buttons">
+        <button id="okBtn" disabled>OK</button>
+        <button id="cancelBtn" disabled>Cancel</button>
+      </div>
+
+      <div id="progress" class="progress hidden">
+        <div id="bar" class="bar" style="width: 0%"></div>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <label class="label">Output</label>
+      <img id="preview" class="preview hidden" alt="Output preview" />
+      <a id="downloadLink" class="download hidden" href="#" download>Download Result</a>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+  <script>
+    window.BACKEND_BASE = localStorage.getItem('BACKEND_BASE') || 'http://localhost:8000';
+  </script>
+</body>
+</html>
+
