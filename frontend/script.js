@@ -8,6 +8,11 @@ const progress = $('#progress');
 const statusEl = $('#status');
 const preview = $('#preview');
 const downloadLink = $('#downloadLink');
+const dropZone = $('#dropZone');
+const filePreview = $('#filePreview');
+const progressPercent = $('#progressPercent');
+const progressText = $('#progressText');
+const outputPlaceholder = $('#outputPlaceholder');
 
 let currentJobId = null;
 let pollTimer = null;
@@ -102,21 +107,33 @@ function resetUI() {
   okBtn.disabled = !fileInput.files.length;
   cancelBtn.disabled = true;
   bar.style.width = '0%';
+  if (progressPercent) progressPercent.textContent = '0%';
   progress.classList.add('hidden');
   statusEl.textContent = '';
   preview.classList.add('hidden');
   preview.src = '';
   downloadLink.classList.add('hidden');
   downloadLink.href = '#';
+  if (outputPlaceholder) outputPlaceholder.classList.remove('hidden');
 }
 
-fileInput.addEventListener('change', () => {
-  resetUI();
-  okBtn.disabled = !fileInput.files.length;
+function showFilePreview(file) {
+  if (filePreview) {
+    filePreview.textContent = `📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    filePreview.classList.remove('hidden');
+  }
+}
 
+function updateProgress(percent) {
+  bar.style.width = percent + '%';
+  if (progressPercent) {
+    progressPercent.textContent = Math.round(percent) + '%';
+  }
+}
+
+function handleFileSelect(file) {
   // Validate file on selection
-  if (fileInput.files.length > 0 && appConfig) {
-    const file = fileInput.files[0];
+  if (file && appConfig) {
     const fileSizeMB = file.size / (1024 * 1024);
 
     if (fileSizeMB > appConfig.upload.max_size_mb) {
@@ -137,8 +154,55 @@ fileInput.addEventListener('change', () => {
       okBtn.disabled = true;
       return;
     }
+
+    showFilePreview(file);
+    okBtn.disabled = false;
+  }
+}
+
+fileInput.addEventListener('change', () => {
+  resetUI();
+  okBtn.disabled = !fileInput.files.length;
+
+  if (fileInput.files.length > 0) {
+    handleFileSelect(fileInput.files[0]);
   }
 });
+
+// Drag and drop functionality
+if (dropZone) {
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+  });
+
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => {
+      dropZone.classList.add('drag-over');
+    }, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => {
+      dropZone.classList.remove('drag-over');
+    }, false);
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+
+    if (files.length > 0) {
+      fileInput.files = files;
+      resetUI();
+      handleFileSelect(files[0]);
+    }
+  }, false);
+}
 
 okBtn.addEventListener('click', async () => {
   if (!fileInput.files.length || !appConfig) return;
@@ -147,7 +211,8 @@ okBtn.addEventListener('click', async () => {
   if (appConfig.ui.show_progress_bar) {
     progress.classList.remove('hidden');
   }
-  bar.style.width = '5%';
+  updateProgress(5);
+  if (progressText) progressText.textContent = 'Uploading...';
   statusEl.textContent = appConfig.ui.messages.uploading;
   okBtn.disabled = true;
   cancelBtn.disabled = false;
@@ -163,6 +228,7 @@ okBtn.addEventListener('click', async () => {
     if (!res.ok) throw new Error(appConfig.ui.messages.create_job_failed);
     const data = await res.json();
     currentJobId = data.job_id;
+    if (progressText) progressText.textContent = 'Processing...';
     startPolling();
   } catch (e) {
     statusEl.textContent = 'Error: ' + e.message;
@@ -196,13 +262,17 @@ function startPolling() {
       if (!res.ok) throw new Error('Status check failed');
       const job = await res.json();
       const pct = Math.max(0, Math.min(100, job.progress || 0));
-      bar.style.width = pct + '%';
+      updateProgress(pct);
       statusEl.textContent = `${job.status} - ${job.message || ''}`;
 
       if (job.status === 'completed') {
         clearInterval(pollTimer);
         cancelBtn.disabled = true;
+        if (progressText) progressText.textContent = 'Completed!';
         const resultUrl = `${BACKEND}/api/jobs/${currentJobId}/result`;
+
+        // Hide output placeholder
+        if (outputPlaceholder) outputPlaceholder.classList.add('hidden');
 
         // Show preview only if enabled in config
         if (appConfig.ui.preview_enabled) {
@@ -219,6 +289,7 @@ function startPolling() {
       } else if (job.status === 'failed' || job.status === 'cancelled') {
         clearInterval(pollTimer);
         cancelBtn.disabled = true;
+        if (progressText) progressText.textContent = job.status === 'failed' ? 'Failed' : 'Cancelled';
       }
     } catch (e) {
       // show but keep trying briefly
