@@ -1,27 +1,42 @@
 # Image Reconstruction (Frontend + Backend)
 
-This repo includes a minimal, separate frontend and backend to upload an image, run a reconstruction model (.pth), show progress with cancel support, and download the output.
+Upload an image, run a reconstruction model (.pth), view progress with cancel support, and download the output.
 
 - Backend: `backend/` (FastAPI)
 - Frontend: `frontend/` (static HTML/JS)
 
-## Navigasi Cepat
+## Quick Start
 
-- [Configuration](#configuration)
-- [Quick Start](#quick-start)
-  - [Backend (Windows, PowerShell)](#backend-windows-powershell)
-  - [Backend (macOS/Linux, bash)](#backend-macoslinux-bash)
-  - [Frontend (Static Server)](#frontend-static-server)
-- [Single Script (Windows, Linux, macOS)](#single-script-windows-linux-macos)
-- [Notes](#notes)
+**Requirements:** Python 3.10+ installed
+
+**Run everything with one command:**
+
+```bash
+# Windows
+python run_all.py --reload
+
+# macOS/Linux
+python3 run_all.py --reload
+```
+
+This automatically:
+- Creates virtual environment (`.venv`)
+- Installs dependencies
+- Starts backend server (FastAPI on port 8000)
+- Starts frontend server (port 5173)
+- Opens the app in your browser
+
+**Optional flags:**
+- `--device {cuda|cpu|auto}` - Force device for model
+- `--model-path <path/to/model.pth>` - Custom model path
+- `--max-upload-mb 20` - Max upload size
+- `--backend-port 8000` - Backend port
+- `--frontend-port 5173` - Frontend port
+- `--no-browser` - Skip auto-open browser
 
 ## Configuration
 
-This project uses a **centralized configuration system** via `config.json` in the project root.
-
-### Quick Config
-
-Edit `config.json` to change any settings for both backend and frontend:
+Edit `config.json` to customize settings:
 
 ```json
 {
@@ -36,119 +51,49 @@ Edit `config.json` to change any settings for both backend and frontend:
     }
   },
   "frontend": {
-    "polling": {
-      "interval_ms": 800
-    }
+    "port": 5173
   }
 }
 ```
 
-**Benefits:**
-- ✅ Single source of truth for all configuration
-- ✅ Environment variables can override any setting
-- ✅ No code changes needed to modify settings
-- ✅ Frontend automatically syncs with backend config
+See [CONFIG.md](CONFIG.md) for complete options.
 
-**See [CONFIG.md](CONFIG.md) for complete configuration guide.**
+## API Endpoints
 
-### Environment Variable Override
+- `GET /api/jobs/{job_id}` - Check job progress
+- `DELETE /api/jobs/{job_id}` - Cancel job
+- `GET /api/jobs/{job_id}/result` - Download result
 
-Any config value can be overridden:
+## Manual Setup (Optional)
 
-```bash
-# Override model path
-export BACKEND_MODEL_PATH="custom/model.pth"
+<details>
+<summary>Click to expand manual setup instructions</summary>
 
-# Override max upload size
-export BACKEND_UPLOAD_MAX_SIZE_MB=20
+### Backend
 
-# Override polling interval
-export FRONTEND_POLLING_INTERVAL_MS=1000
+**Windows:**
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate
+pip install -r backend\requirements.txt
+uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Quick Start
+**macOS/Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
+```
 
-### Backend (Windows, PowerShell)
+### Frontend
 
-1) Create and activate venv
-- `py -3.10 -m venv .venv`
-- `.\.venv\Scripts\Activate`
+```bash
+cd frontend
+python -m http.server 5173
+```
 
-2) Install dependencies
-- `pip install -r backend\requirements.txt`
+Open `http://localhost:5173`
 
-3) Place model and set env (optional)
-- Put your model at `backend\data\models\model.pth`
-- Optionally set env vars:
-  - `$env:MODEL_PATH = "backend\data\models\model.pth"`
-  - `$env:DEVICE = "cuda"`  (or `"cpu"`)
-  - `$env:MAX_UPLOAD_MB = "10"`
-
-4) Run backend server
-- `uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000`
-
-### Backend (macOS/Linux, bash)
-
-1) Create and activate venv
-- `python3 -m venv .venv`
-- `source .venv/bin/activate`
-
-2) Install dependencies
-- `pip install -r backend/requirements.txt`
-
-3) Place model and set env (optional)
-- Put your model at `backend/data/models/model.pth`
-- Optionally set env vars:
-  - `export MODEL_PATH=backend/data/models/model.pth`
-  - `export DEVICE=cuda`  # or `cpu`
-  - `export MAX_UPLOAD_MB=10`
-
-4) Run backend server
-- `uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000`
-
-Backend configuration
-
-- `MODEL_PATH`: Path to your `.pth` or `.pt` file.
-- `DEVICE`: `cuda` or `cpu`. Defaults to `cuda` if available.
-- `MAX_UPLOAD_MB`: Upload limit in MB (default 10).
-- `ALLOWED_ORIGINS`: CORS origins (default `*`).
-
-### Frontend (Static Server)
-
-- Windows PowerShell:
-  - `cd frontend`
-  - `python -m http.server 5173`
-
-- macOS/Linux (bash):
-  - `cd frontend`
-  - `python3 -m http.server 5173`
-
-- Open `http://localhost:5173`
-
-Optional: point frontend to a different backend origin
-- In the browser console: `localStorage.setItem('BACKEND_BASE','http://localhost:8000')`
-- Reload the page.
-
-## Notes
-
-- The backend provides progress via polling `GET /api/jobs/{job_id}`.
-- Cancel a job with `DELETE /api/jobs/{job_id}`.
-- Download the result from `GET /api/jobs/{job_id}/result`.
-
-## Single Script (Windows, Linux, macOS)
-
-- Requirements: Python 3.10+ installed.
-- Run from repo root:
-  - Windows PowerShell: `py run_all.py --reload` (or `python run_all.py`)
-  - macOS/Linux: `python3 run_all.py --reload`
-- Optional flags:
-  - `--device {cuda|cpu}` (force device)
-  - `--model-path <path/to/model.pth>`
-  - `--max-upload-mb 20`
-  - `--backend-port 8000` / `--frontend-port 5173`
-  - `--no-browser` to skip auto-open
-
-What it does
-- Creates `.venv` if missing and installs backend requirements.
-- Starts backend `uvicorn backend.app:app` and serves `frontend/` via Python’s http.server.
-- Opens the frontend in your browser.
+</details>
