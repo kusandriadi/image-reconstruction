@@ -3,6 +3,8 @@ const $ = (sel) => document.querySelector(sel);
 const fileInput = $('#fileInput');
 const okBtn = $('#okBtn');
 const cancelBtn = $('#cancelBtn');
+const resetBtn = $('#resetBtn');
+const modelSelect = $('#modelSelect');
 const bar = $('#bar');
 const progress = $('#progress');
 const statusEl = $('#status');
@@ -106,6 +108,7 @@ function resetUI() {
   if (pollTimer) clearInterval(pollTimer);
   okBtn.disabled = !fileInput.files.length;
   cancelBtn.disabled = true;
+  resetBtn.classList.add('hidden');
   bar.style.width = '0%';
   if (progressPercent) progressPercent.textContent = '0%';
   progress.classList.add('hidden');
@@ -117,9 +120,16 @@ function resetUI() {
   if (outputPlaceholder) outputPlaceholder.classList.remove('hidden');
 }
 
+function resetAll() {
+  // Reset file input
+  fileInput.value = '';
+  if (filePreview) filePreview.classList.add('hidden');
+  resetUI();
+}
+
 function showFilePreview(file) {
   if (filePreview) {
-    filePreview.textContent = `📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    filePreview.textContent = `📄 ${file.name}`;
     filePreview.classList.remove('hidden');
   }
 }
@@ -220,6 +230,11 @@ okBtn.addEventListener('click', async () => {
   const form = new FormData();
   form.append('file', fileInput.files[0]);
 
+  // Add selected model to form data
+  if (modelSelect) {
+    form.append('model', modelSelect.value);
+  }
+
   try {
     const res = await fetch(`${BACKEND}/api/jobs`, {
       method: 'POST',
@@ -248,6 +263,10 @@ cancelBtn.addEventListener('click', async () => {
   }
 });
 
+resetBtn.addEventListener('click', () => {
+  resetAll();
+});
+
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   if (!appConfig) return;
@@ -268,6 +287,8 @@ function startPolling() {
       if (job.status === 'completed') {
         clearInterval(pollTimer);
         cancelBtn.disabled = true;
+        okBtn.disabled = true;
+        resetBtn.classList.remove('hidden');
         if (progressText) progressText.textContent = 'Completed!';
         const resultUrl = `${BACKEND}/api/jobs/${currentJobId}/result`;
 
@@ -289,6 +310,7 @@ function startPolling() {
       } else if (job.status === 'failed' || job.status === 'cancelled') {
         clearInterval(pollTimer);
         cancelBtn.disabled = true;
+        resetBtn.classList.remove('hidden');
         if (progressText) progressText.textContent = job.status === 'failed' ? 'Failed' : 'Cancelled';
       }
     } catch (e) {

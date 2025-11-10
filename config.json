@@ -9,7 +9,7 @@
     "port": 8000,
     "reload": false,
     "model": {
-      "path": "backend/data/models/ConvNextDiscriminator_x4.pth",
+      "path": "backend/model/ConvNext_REAL-ESRGAN.pth",
       "device": "auto",
       "device_options": ["auto", "cpu", "cuda"]
     },

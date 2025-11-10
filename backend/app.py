@@ -100,13 +100,14 @@ class BackendApp:
         app = self.app
 
         @app.post("/api/jobs")
-        async def create_job(file: UploadFile = File(...)):
+        async def create_job(file: UploadFile = File(...), model: str = "ConvNext_REAL-ESRGAN.pth"):
             """Create a new image reconstruction job.
 
             Validates and saves the uploaded image file, then enqueues it for processing.
 
             Args:
                 file: Uploaded image file (multipart/form-data).
+                model: Model filename to use (default: ConvNext_REAL-ESRGAN.pth).
 
             Returns:
                 JSON response with job_id: {"job_id": "abc123..."}
@@ -118,10 +119,10 @@ class BackendApp:
                 HTTPException 500: Internal server error during processing
             """
             job_id = uuid.uuid4().hex
-            logger.info(f"API: POST /api/jobs - Creating job {job_id}")
+            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model}")
             try:
                 upload_path = await self.validator.save(job_id, file)
-                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path))
+                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model)
                 logger.info(f"API: Job {job_id} created successfully")
                 return {"job_id": job_id}
             except HTTPException as e:

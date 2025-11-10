@@ -1,0 +1,21 @@
+version: '3.8'
+
+# Development override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app/backend
+      - ./config.json:/app/config.json
+    environment:
+      - BACKEND_RELOAD=true
+      - LOGGING_LEVEL=DEBUG
+    command: ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    volumes:
+      # Mount frontend for live updates
+      - ./frontend:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf

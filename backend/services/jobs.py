@@ -79,7 +79,7 @@ class JobManager:
         with self._lock:
             self._jobs[job_id].update(kwargs)
 
-    def enqueue(self, job_id: str, input_path: str):
+    def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth"):
         """Create and enqueue a new reconstruction job.
 
         Creates a new job entry with initial metadata and starts a background worker
@@ -89,14 +89,16 @@ class JobManager:
         Args:
             job_id: Unique identifier for this job (typically a UUID).
             input_path: Full path to the uploaded input image file.
+            model_filename: Filename of the model to use (default: ConvNext_REAL-ESRGAN.pth).
 
         Example:
             >>> manager.enqueue(
             ...     job_id="abc123",
-            ...     input_path="/uploads/abc123_photo.png"
+            ...     input_path="/uploads/abc123_photo.png",
+            ...     model_filename="REAL-ESRGAN.pth"
             ... )
         """
-        logger.info(f"Enqueueing job {job_id}: {input_path}")
+        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename}")
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
@@ -105,6 +107,7 @@ class JobManager:
                 "message": "queued",
                 "input_path": input_path,
                 "output_path": str(Path(self.outputs_dir) / f"{job_id}.png"),
+                "model_filename": model_filename,
                 "cancel": False,
                 "error": None,
             }
@@ -202,13 +205,18 @@ class JobManager:
         self._update(job_id, status="running", message="starting")
         job = self.get(job_id)
         try:
-            logger.info(f"Job {job_id}: Starting reconstruction")
+            model_filename = job.get("model_filename", "ConvNext_REAL-ESRGAN.pth")
+            logger.warning(f"🎯 Job {job_id}: Using model '{model_filename}'")
+            # Construct model path from filename
+            model_path = Path("backend/model") / model_filename
+            logger.warning(f"📂 Model path: {model_path}")
             # Run the reconstruction process
             self.reconstructor.reconstruct(
                 job["input_path"],
                 job["output_path"],
                 progress=progress,
-                cancelled=cancelled
+                cancelled=cancelled,
+                model_path=str(model_path)
             )
             self._update(job_id, status="completed", message="completed")
             logger.info(f"Job {job_id}: Completed successfully")

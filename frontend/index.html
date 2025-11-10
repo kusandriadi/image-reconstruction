@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Image Reconstruction</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -31,6 +34,19 @@
         </svg>
         Upload Image
       </label>
+
+      <div class="model-selector">
+        <label for="modelSelect" class="model-label">
+          <svg class="model-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9.75 17L9 20L8 21H16L15 20L14.25 17M3 13H21M5 17H19C19.5304 17 20.0391 16.7893 20.4142 16.4142C20.7893 16.0391 21 15.5304 21 15V5C21 4.46957 20.7893 3.96086 20.4142 3.58579C20.0391 3.21071 19.5304 3 19 3H5C4.46957 3 3.96086 3.21071 3.58579 3.58579C3.21071 3.96086 3 4.46957 3 5V15C3 15.5304 3.21071 16.0391 3.58579 16.4142C3.96086 16.7893 4.46957 17 5 17Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Select Model
+        </label>
+        <select id="modelSelect" class="model-select">
+          <option value="ConvNext_REAL-ESRGAN.pth">ConvNext REAL-ESRGAN</option>
+          <option value="REAL-ESRGAN.pth">REAL-ESRGAN</option>
+        </select>
+      </div>
 
       <div id="dropZone" class="drop-zone">
         <div class="drop-zone-content">
@@ -61,6 +77,13 @@
             <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           Cancel
+        </button>
+        <button id="resetBtn" class="btn btn-reset hidden">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21.5 2V8M21.5 8H15.5M21.5 8L18.5 5.29168C17.5597 4.26119 16.383 3.47617 15.0726 3.00567C13.7622 2.53516 12.3581 2.39505 10.9827 2.59778C9.60726 2.80051 8.30233 3.34004 7.17206 4.17152C6.04179 5.003 5.1185 6.10691 4.47894 7.38706C3.83938 8.66721 3.50428 10.0843 3.50001 11.5228C3.49574 12.9613 3.82237 14.3803 4.45414 15.6643C5.08591 16.9483 6.00264 18.0577 7.12807 18.8965C8.25349 19.7353 9.55548 20.2821 10.9289 20.4925" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2.5 22V16M2.5 16H8.5M2.5 16L5.5 18.7083C6.44033 19.7388 7.61702 20.5238 8.92743 20.9943C10.2378 21.4648 11.6419 21.605 13.0173 21.4022C14.3927 21.1995 15.6977 20.66 16.8279 19.8285C17.9582 18.997 18.8815 17.8931 19.5211 16.6129C20.1606 15.3328 20.4957 13.9157 20.5 12.4772C20.5043 11.0387 20.1776 9.61971 19.5459 8.33566C18.9141 7.05161 17.9974 5.94231 16.8719 5.10348C15.7465 4.26464 14.4445 3.71794 13.0711 3.5075" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Reset
         </button>
       </div>
 

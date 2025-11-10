@@ -101,7 +101,7 @@ class Reconstructor:
             logger.debug("Model already loaded, skipping")
             return
 
-        logger.info(f"Loading model from {self.model_path}")
+        logger.warning(f"⚙️ LOADING MODEL: {self.model_path}")
         if progress:
             progress(5, "loading model")
 
@@ -114,19 +114,76 @@ class Reconstructor:
                     self.model = torch.jit.load(self.model_path, map_location=self.device)
                 else:
                     logger.debug("Loading PyTorch model (.pth)")
-                    self.model = torch.load(self.model_path, map_location=self.device)
+                    loaded = torch.load(self.model_path, map_location=self.device, weights_only=False)
+
+                    # Handle different checkpoint formats
+                    if isinstance(loaded, dict):
+                        logger.warning(f"📊 Checkpoint keys: {list(loaded.keys())}")
+
+                        # Try to extract the state dict from common checkpoint formats
+                        state_dict = None
+                        if 'params_ema' in loaded:
+                            logger.info("Using 'params_ema' from checkpoint")
+                            state_dict = loaded['params_ema']
+                        elif 'params' in loaded:
+                            logger.info("Using 'params' from checkpoint")
+                            state_dict = loaded['params']
+                        elif 'model' in loaded:
+                            logger.info("Using 'model' from checkpoint")
+                            self.model = loaded['model']
+                        elif 'state_dict' in loaded:
+                            logger.info("Using 'state_dict' from checkpoint")
+                            state_dict = loaded['state_dict']
+                        elif 'model_state_dict' in loaded:
+                            logger.info("Using 'model_state_dict' from checkpoint")
+                            state_dict = loaded['model_state_dict']
+                        else:
+                            # Assume the dict itself is the state dict
+                            logger.info("Using dictionary as state_dict")
+                            state_dict = loaded
+
+                        # If we have a state dict, need to load it into a model architecture
+                        if state_dict is not None:
+                            from backend.models.rrdbnet_arch import RRDBNet
+                            logger.warning("🏗️ Creating RRDBNet model architecture")
+                            # Standard Real-ESRGAN configuration
+                            self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
+                                               num_block=23, num_grow_ch=32, scale=4)
+                            logger.warning(f"📥 Loading state dict into model from: {self.model_path}")
+                            self.model.load_state_dict(state_dict, strict=True)
+                            logger.warning(f"✅ Model loaded successfully: {Path(self.model_path).name}")
+                    else:
+                        # Loaded object is already a model
+                        logger.info("Checkpoint is a complete model")
+                        self.model = loaded
+
                 logger.info("Model loaded successfully")
             except Exception as e:
                 logger.error(f"Failed to load model on {self.device}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 # If loading fails, fall back to CPU attempt before giving up
                 if self.device != "cpu":
                     try:
                         logger.info("Attempting to load model on CPU")
-                        self.model = torch.load(self.model_path, map_location="cpu")
+                        loaded = torch.load(self.model_path, map_location="cpu", weights_only=False)
+                        if isinstance(loaded, dict) and 'params_ema' in loaded:
+                            from backend.models.rrdbnet_arch import RRDBNet
+                            self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
+                                               num_block=23, num_grow_ch=32, scale=4)
+                            self.model.load_state_dict(loaded['params_ema'], strict=True)
+                        elif isinstance(loaded, dict) and 'params' in loaded:
+                            from backend.models.rrdbnet_arch import RRDBNet
+                            self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
+                                               num_block=23, num_grow_ch=32, scale=4)
+                            self.model.load_state_dict(loaded['params'], strict=True)
+                        else:
+                            self.model = loaded
                         self.device = "cpu"
                         logger.info("Model loaded successfully on CPU")
                     except Exception as e2:
                         logger.error(f"Failed to load model on CPU: {e2}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
                         self.model = None
                 else:
                     self.model = None
@@ -161,7 +218,8 @@ class Reconstructor:
         input_path: str,
         output_path: str,
         progress: Optional[Callable[[int, str], None]] = None,
-        cancelled: Optional[Callable[[], bool]] = None
+        cancelled: Optional[Callable[[], bool]] = None,
+        model_path: Optional[str] = None
     ):
         """Reconstruct an image using the loaded PyTorch model.
 
@@ -184,6 +242,9 @@ class Reconstructor:
                      reporting processing progress.
             cancelled: Optional callback function() -> bool that returns True if
                       processing should be cancelled.
+            model_path: Optional path to a different model file to use for this
+                       reconstruction. If provided and different from the current
+                       model, the model will be reloaded.
 
         Raises:
             Cancelled: If the cancelled callback returns True during processing.
@@ -201,9 +262,19 @@ class Reconstructor:
             ...     "input.jpg",
             ...     "output.png",
             ...     progress=track_progress,
-            ...     cancelled=is_cancelled
+            ...     cancelled=is_cancelled,
+            ...     model_path="backend/model/REAL-ESRGAN.pth"
             ... )
         """
+        # If a different model path is provided, reload the model
+        if model_path and model_path != self.model_path:
+            logger.warning(f"🔄 MODEL SWITCH: {self.model_path} -> {model_path}")
+            self.model_path = model_path
+            self.model_loaded = False
+            self.model = None
+        else:
+            logger.info(f"📦 Using model: {self.model_path}")
+
         def step(pct: int, msg: str):
             """Internal helper to report progress and check cancellation."""
             if progress:
