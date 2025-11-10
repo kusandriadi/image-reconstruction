@@ -6,6 +6,44 @@ AI-powered image reconstruction using PyTorch REAL-ESRGAN models with a modern w
 ![Docker Ready](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python)
 
+## 📑 Table of Contents
+
+- [✨ Features](#-features)
+- [📚 Platform-Specific Setup Guides](#-platform-specific-setup-guides)
+- [📁 Project Structure](#-project-structure)
+- [🚀 Quick Start](#-quick-start)
+  - [Option 1: Local Development](#option-1-local-development)
+  - [Option 2: Docker (Production)](#option-2-docker-production)
+    - [Quick Launch with Auto-Check Script](#quick-launch-with-auto-check-script)
+    - [Manual Deployment](#manual-deployment)
+    - [Access Application](#access-application)
+- [🐳 VPS Deployment](#-vps-deployment)
+  - [Quick VPS Setup](#quick-vps-setup)
+- [⚙️ Configuration](#️-configuration)
+  - [Quick Config](#quick-config)
+  - [Environment Variables](#environment-variables)
+- [🔧 Docker Commands](#-docker-commands)
+- [📊 API Endpoints](#-api-endpoints)
+- [🎨 UI Features](#-ui-features)
+- [🛠️ Troubleshooting](#️-troubleshooting)
+  - [Backend won't start](#backend-wont-start)
+  - [Frontend shows connection error](#frontend-shows-connection-error)
+  - [Model switching not working](#model-switching-not-working)
+  - [Out of memory](#out-of-memory)
+- [📖 Documentation](#-documentation)
+  - [Platform Setup](#platform-setup)
+  - [Main Guides](#main-guides)
+  - [Component Docs](#component-docs)
+  - [Tools](#tools)
+- [🔍 Verify Model Switching](#-verify-model-switching)
+- [📝 Tech Stack](#-tech-stack)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [🆘 Support](#-support)
+- [🎯 Quick Reference](#-quick-reference)
+
+---
+
 ## ✨ Features
 
 - 🎨 **Modern UI** - BINUS-themed orange and teal design with drag & drop
@@ -14,6 +52,23 @@ AI-powered image reconstruction using PyTorch REAL-ESRGAN models with a modern w
 - 🐳 **Docker Ready** - One-command deployment to production
 - ⚡ **Fast API** - Async processing with FastAPI backend
 - 🔄 **Auto-reset** - Reset button after completion for easy batch processing
+
+---
+
+## 📚 Platform-Specific Setup Guides
+
+Choose your operating system for detailed setup instructions:
+
+| Platform | Guide | What's Included |
+|----------|-------|-----------------|
+| 🐧 **Linux** | **[LINUX.md](LINUX.md)** | Ubuntu/Debian/Fedora/Arch setup, Docker installation, Docker Compose installation, troubleshooting |
+| 🪟 **Windows** | **[WINDOWS.md](WINDOWS.md)** | Docker Desktop, WSL2 setup, PowerShell/CMD commands, Docker Compose installation, troubleshooting |
+
+These guides include:
+- Complete installation steps for Docker and Docker Compose
+- Platform-specific commands and troubleshooting
+- Python virtual environment setup
+- Common issues and solutions
 
 ---
 
@@ -45,6 +100,10 @@ image-reconstruction/
 ---
 
 ## 🚀 Quick Start
+
+> **💡 For detailed platform-specific instructions**, see:
+> - **Linux**: [LINUX.md](LINUX.md) (includes Docker/Docker Compose installation)
+> - **Windows**: [WINDOWS.md](WINDOWS.md) (includes Docker Desktop/WSL2 setup)
 
 ### Option 1: Local Development
 
@@ -81,21 +140,50 @@ image-reconstruction/
 
 **Requirements:** Docker & Docker Compose installed
 
-1. **Deploy with one command:**
-   ```bash
-   chmod +x deploy.sh
-   ./deploy.sh
-   ```
+#### Quick Launch with Auto-Check Script
 
-2. **Or manually:**
-   ```bash
-   docker-compose up -d --build
-   ```
+The easiest way to run with Docker - automatically checks requirements:
 
-3. **Access:**
-   - Frontend: http://localhost
-   - API: http://localhost:8000
-   - Health: http://localhost:8000/api/health
+**Linux/macOS:**
+```bash
+chmod +x run-docker.sh
+./run-docker.sh
+```
+
+**Windows PowerShell:**
+```powershell
+.\run-docker.ps1
+```
+
+These scripts will:
+- ✓ Check if Docker is installed
+- ✓ Check if Docker Compose is available
+- ✓ Verify Docker daemon is running
+- ✓ Create necessary directories
+- ✓ Build and start containers
+- ✓ Show status and access URLs
+
+#### Manual Deployment
+
+**Option A - Using deploy.sh:**
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+**Option B - Direct Docker Compose:**
+```bash
+docker compose up -d --build
+# or
+docker-compose up -d --build
+```
+
+#### Access Application
+
+- Frontend: http://localhost
+- API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- Health: http://localhost:8000/api/health
 
 ---
 
@@ -269,6 +357,10 @@ docker stats
 ---
 
 ## 📖 Documentation
+
+### Platform Setup
+- **[LINUX.md](LINUX.md)** - Complete Linux setup guide (Ubuntu/Debian/Fedora/Arch)
+- **[WINDOWS.md](WINDOWS.md)** - Complete Windows setup guide (Docker Desktop, WSL2)
 
 ### Main Guides
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete production deployment guide (SSL, security, backups)
