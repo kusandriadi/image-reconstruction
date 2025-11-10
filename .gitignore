@@ -119,6 +119,9 @@ ipython_config.py
 .pdm-python
 .pdm-build/
 
+
+.claude/
+
 # pixi
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
 #pixi.lock
@@ -205,6 +208,7 @@ cython_debug/
 backend/data/uploads/
 backend/data/outputs/
 backend/data/models/*.pth
+backend/model/*.pth
 .cursorignore
 .cursorindexingignore
 
