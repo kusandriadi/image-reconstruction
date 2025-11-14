@@ -322,6 +322,9 @@ class Reconstructor:
                 out = out[0]
             if hasattr(out, "detach"):
                 out = out.detach().cpu().squeeze(0)
+            # Clamp values to [0, 1] range to prevent artifacts
+            out = torch.clamp(out, 0, 1)
+            logger.debug(f"Output tensor range: [{out.min():.4f}, {out.max():.4f}]")
             out_img = T.ToPILImage()(out)
             logger.debug(f"Output image size: {out_img.size}")
         else:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from pathlib import Path
 from typing import Dict, Optional, Callable
 
@@ -110,6 +111,8 @@ class JobManager:
                 "model_filename": model_filename,
                 "cancel": False,
                 "error": None,
+                "start_time": None,
+                "elapsed_seconds": None,
             }
 
         # Start background worker thread for this job
@@ -202,14 +205,16 @@ class JobManager:
             with self._lock:
                 return self._jobs[job_id].get("cancel", False)
 
-        self._update(job_id, status="running", message="starting")
+        # Record start time
+        start_time = time.time()
+        self._update(job_id, status="running", message="starting", start_time=start_time)
         job = self.get(job_id)
         try:
             model_filename = job.get("model_filename", "ConvNext_REAL-ESRGAN.pth")
-            logger.warning(f"🎯 Job {job_id}: Using model '{model_filename}'")
+            logger.warning(f"Job {job_id}: Using model '{model_filename}'")
             # Construct model path from filename
             model_path = Path("backend/model") / model_filename
-            logger.warning(f"📂 Model path: {model_path}")
+            logger.warning(f"Model path: {model_path}")
             # Run the reconstruction process
             self.reconstructor.reconstruct(
                 job["input_path"],
@@ -218,12 +223,16 @@ class JobManager:
                 cancelled=cancelled,
                 model_path=str(model_path)
             )
-            self._update(job_id, status="completed", message="completed")
-            logger.info(f"Job {job_id}: Completed successfully")
+            # Calculate elapsed time
+            elapsed = time.time() - start_time
+            self._update(job_id, status="completed", message="completed", elapsed_seconds=round(elapsed, 2))
+            logger.info(f"Job {job_id}: Completed successfully in {elapsed:.2f} seconds")
         except Cancelled:
-            self._update(job_id, status="cancelled", message="cancelled by user")
-            logger.info(f"Job {job_id}: Cancelled by user")
+            elapsed = time.time() - start_time
+            self._update(job_id, status="cancelled", message="cancelled by user", elapsed_seconds=round(elapsed, 2))
+            logger.info(f"Job {job_id}: Cancelled by user after {elapsed:.2f} seconds")
         except Exception as e:
-            self._update(job_id, status="failed", message="failed", error=str(e))
-            logger.error(f"Job {job_id}: Failed with error: {e}", exc_info=True)
+            elapsed = time.time() - start_time
+            self._update(job_id, status="failed", message="failed", error=str(e), elapsed_seconds=round(elapsed, 2))
+            logger.error(f"Job {job_id}: Failed after {elapsed:.2f} seconds with error: {e}", exc_info=True)
 

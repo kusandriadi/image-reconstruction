@@ -54,6 +54,7 @@
     },
     "ui": {
       "title": "Image Reconstruction",
+      "enable_model_selection": true,
       "labels": {
         "input": "Input Image",
         "output": "Output",

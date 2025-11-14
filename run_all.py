@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 import webbrowser
+import urllib.request
+import socket
 
 
 ROOT = Path(__file__).resolve().parent
@@ -80,6 +82,41 @@ def terminate(proc: subprocess.Popen):
         pass
 
 
+def wait_for_port(host: str, port: int, timeout: int = 30) -> bool:
+    """Wait for a port to be open and accepting connections."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
+def wait_for_backend(host: str, port: int, timeout: int = 30) -> bool:
+    """Wait for backend health endpoint to respond."""
+    url = f"http://{host}:{port}/api/health"
+    if host == "0.0.0.0":
+        url = f"http://localhost:{port}/api/health"
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            response = urllib.request.urlopen(url, timeout=1)
+            if response.status == 200:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
 def main():
     # Load configuration from config.json
     config = load_config()
@@ -144,11 +181,38 @@ def main():
 
     atexit.register(cleanup)
 
+    # Wait for services to be ready
+    print("\nWaiting for services to start...")
+    print(f"Configuration loaded from: {CONFIG_FILE}")
+
+    # Wait for backend
+    print("Waiting for backend...")
+    if wait_for_backend(args.backend_host, args.backend_port):
+        print("Backend is ready")
+    else:
+        print("Backend may not be fully ready yet")
+
+    # Wait for frontend
+    print("Waiting for frontend...")
+    if wait_for_port("localhost", args.frontend_port):
+        print("Frontend is ready")
+    else:
+        print("Frontend may not be fully ready yet")
+
+    # Display access information
     frontend_url = f"http://localhost:{args.frontend_port}"
-    print("\nServices running:")
-    print(f"- Backend: http://localhost:{args.backend_port}")
-    print(f"- Frontend: {frontend_url}")
-    print(f"\nConfiguration loaded from: {CONFIG_FILE}")
+    backend_url = f"http://localhost:{args.backend_port}"
+
+    print("\n" + "="*60)
+    print("APPLICATION IS ONLINE")
+    print("="*60)
+    print(f"\nFrontend URL:  {frontend_url}")
+    print(f"Backend API:   {backend_url}")
+    print(f"API Docs:      {backend_url}/docs")
+    print(f"Health Check:  {backend_url}/api/health")
+    print("\n" + "="*60)
+    print("Press Ctrl+C to stop all services")
+    print("="*60 + "\n")
 
     if should_open_browser:
         print("Opening browser...")

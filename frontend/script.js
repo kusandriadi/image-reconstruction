@@ -91,6 +91,16 @@ function applyUIConfig() {
   if (appConfig.ui?.preview_alt_text && preview) {
     preview.alt = appConfig.ui.preview_alt_text;
   }
+
+  // Show/hide model selector based on config
+  const modelSelectorElement = document.querySelector('.model-selector');
+  if (modelSelectorElement) {
+    if (appConfig.ui?.enable_model_selection === false) {
+      modelSelectorElement.style.display = 'none';
+    } else {
+      modelSelectorElement.style.display = 'flex';
+    }
+  }
 }
 
 // Helper function to format message templates
@@ -282,7 +292,10 @@ function startPolling() {
       const job = await res.json();
       const pct = Math.max(0, Math.min(100, job.progress || 0));
       updateProgress(pct);
-      statusEl.textContent = `${job.status} - ${job.message || ''}`;
+
+      // Display status without elapsed time
+      let statusText = `${job.status} - ${job.message || ''}`;
+      statusEl.textContent = statusText;
 
       if (job.status === 'completed') {
         clearInterval(pollTimer);
@@ -311,7 +324,8 @@ function startPolling() {
         clearInterval(pollTimer);
         cancelBtn.disabled = true;
         resetBtn.classList.remove('hidden');
-        if (progressText) progressText.textContent = job.status === 'failed' ? 'Failed' : 'Cancelled';
+        let failedText = job.status === 'failed' ? 'Failed' : 'Cancelled';
+        if (progressText) progressText.textContent = failedText;
       }
     } catch (e) {
       // show but keep trying briefly
