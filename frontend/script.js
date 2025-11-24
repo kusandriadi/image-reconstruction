@@ -29,9 +29,12 @@ let BACKEND = window.BACKEND_BASE;
 // Load configuration from backend on startup
 async function loadConfig() {
   try {
-    // If no BACKEND set, try to get from config
+    // If no BACKEND set, use current origin (works in production) or localhost (dev)
     if (!BACKEND) {
-      BACKEND = 'http://localhost:8000'; // Temporary default just for initial config fetch
+      // In production (with Nginx), use current origin
+      // In development, use localhost:8000
+      const isProduction = window.location.protocol === 'https:' || window.location.hostname !== 'localhost';
+      BACKEND = isProduction ? window.location.origin : 'http://localhost:8000';
     }
 
     const res = await fetch(`${BACKEND}/api/config`);

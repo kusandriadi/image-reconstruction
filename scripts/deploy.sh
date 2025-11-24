@@ -335,8 +335,11 @@ services:
 EOF
 
 # Build and start services
+print_info "Cleaning Docker cache..."
+docker builder prune -f > /dev/null 2>&1
+
 print_info "Building Docker images (this may take several minutes)..."
-docker-compose build --quiet
+docker-compose build --no-cache --quiet
 
 print_info "Starting services..."
 docker-compose up -d
