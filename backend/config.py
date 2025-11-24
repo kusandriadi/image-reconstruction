@@ -41,6 +41,9 @@ class Config:
         max_upload_mb: Maximum allowed upload file size in megabytes.
         allowed_mime: Set of allowed MIME types for uploaded images.
         allowed_ext: Set of allowed file extensions for uploaded images.
+        cleanup_enabled: Whether automatic file cleanup is enabled.
+        cleanup_interval_hours: Time in hours between cleanup runs.
+        cleanup_max_age_hours: Maximum age in hours for files before deletion.
 
     Example:
         >>> config = Config.from_config()
@@ -59,6 +62,9 @@ class Config:
     max_upload_mb: float = 10.0
     allowed_mime: Set[str] = field(default_factory=lambda: {"image/png", "image/jpeg", "image/jpg", "image/webp"})
     allowed_ext: Set[str] = field(default_factory=lambda: {".png", ".jpg", ".jpeg", ".webp"})
+    cleanup_enabled: bool = True
+    cleanup_interval_hours: float = 1.0
+    cleanup_max_age_hours: float = 1.0
 
     @property
     def max_upload_bytes(self) -> int:
@@ -143,11 +149,19 @@ class Config:
             ".png", ".jpg", ".jpeg", ".webp"
         ])
 
+        # Read cleanup configuration
+        cleanup_enabled = loader.get("backend.cleanup.enabled", True)
+        cleanup_interval_hours = float(loader.get("backend.cleanup.interval_hours", 1.0))
+        cleanup_max_age_hours = float(loader.get("backend.cleanup.max_age_hours", 1.0))
+
         logger.info(f"Configuration loaded successfully")
         logger.info(f"  Model path: {model_path}")
         logger.info(f"  Max upload size: {max_upload_mb}MB")
         logger.info(f"  CORS origins: {allowed_origins}")
         logger.info(f"  Allowed extensions: {allowed_ext_list}")
+        logger.info(f"  Cleanup enabled: {cleanup_enabled}")
+        logger.info(f"  Cleanup interval: {cleanup_interval_hours}h")
+        logger.info(f"  Cleanup max age: {cleanup_max_age_hours}h")
 
         return Config(
             base_dir=base_dir,
@@ -160,6 +174,9 @@ class Config:
             max_upload_mb=max_upload_mb,
             allowed_mime=set(allowed_mime_list),
             allowed_ext=set(allowed_ext_list),
+            cleanup_enabled=cleanup_enabled,
+            cleanup_interval_hours=cleanup_interval_hours,
+            cleanup_max_age_hours=cleanup_max_age_hours,
         )
 
     @staticmethod

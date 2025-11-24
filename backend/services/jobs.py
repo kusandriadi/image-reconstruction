@@ -80,7 +80,7 @@ class JobManager:
         with self._lock:
             self._jobs[job_id].update(kwargs)
 
-    def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth", scale: int = 4):
+    def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth"):
         """Create and enqueue a new reconstruction job.
 
         Creates a new job entry with initial metadata and starts a background worker
@@ -91,17 +91,15 @@ class JobManager:
             job_id: Unique identifier for this job (typically a UUID).
             input_path: Full path to the uploaded input image file.
             model_filename: Filename of the model to use (default: ConvNext_REAL-ESRGAN.pth).
-            scale: Upscale factor (2x or 4x, default: 4).
 
         Example:
             >>> manager.enqueue(
             ...     job_id="abc123",
             ...     input_path="/uploads/abc123_photo.png",
-            ...     model_filename="REAL-ESRGAN.pth",
-            ...     scale=4
+            ...     model_filename="REAL-ESRGAN.pth"
             ... )
         """
-        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename} and scale {scale}x")
+        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename}")
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
@@ -111,7 +109,6 @@ class JobManager:
                 "input_path": input_path,
                 "output_path": str(Path(self.outputs_dir) / f"{job_id}.png"),
                 "model_filename": model_filename,
-                "scale": scale,
                 "cancel": False,
                 "error": None,
                 "start_time": None,
@@ -224,8 +221,7 @@ class JobManager:
                 job["output_path"],
                 progress=progress,
                 cancelled=cancelled,
-                model_path=str(model_path),
-                scale=job.get("scale", 4)
+                model_path=str(model_path)
             )
             # Calculate elapsed time
             elapsed = time.time() - start_time
