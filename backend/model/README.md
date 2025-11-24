@@ -1,1 +1,1 @@
-Download all needed models here: https://binusianorg-my.sharepoint.com/personal/kus_andriadi_binus_ac_id/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fkus%5Fandriadi%5Fbinus%5Fac%5Fid%2FDocuments%2FDCS%2FDisertasi%2FModel&ga=1
+Download all needed models here: https://binusianorg-my.sharepoint.com/personal/kus_andriadi_binus_ac_id/_layouts/15/guestaccess.aspx?share=EnNjotrV4F1Gp4RR3KVyXggB2y7v8tz3T2cxcbCqtzL5yA&e=UHQUPT
