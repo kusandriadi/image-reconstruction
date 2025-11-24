@@ -54,7 +54,10 @@
     },
     "ui": {
       "title": "Image Reconstruction",
-      "enable_model_selection": true,
+      "enable_model_selection": false,
+      "enable_scale_selection": true,
+      "scale_options": [2, 4],
+      "default_scale": 4,
       "labels": {
         "input": "Input Image",
         "output": "Output",

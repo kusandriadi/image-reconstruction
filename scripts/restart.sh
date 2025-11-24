@@ -229,11 +229,39 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 print_info "Changes pulled and services restarted"
 echo ""
+
+# Get domain from nginx config if available
+DOMAIN=""
+if [ -f "docker/nginx.conf" ]; then
+    DOMAIN=$(grep -m1 "server_name" docker/nginx.conf | awk '{print $2}' | tr -d ';' | grep -v "_")
+fi
+
+# Display URLs
+if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "_" ]; then
+    echo "Application accessible at:"
+    echo ""
+    echo -e "  🌐 Frontend:    \033]8;;https://$DOMAIN\033\\https://$DOMAIN\033]8;;\033\\"
+    echo -e "  🔧 Backend API: \033]8;;https://$DOMAIN/api/\033\\https://$DOMAIN/api/\033]8;;\033\\"
+    echo -e "  📚 API Docs:    \033]8;;https://$DOMAIN/docs\033\\https://$DOMAIN/docs\033]8;;\033\\"
+    echo -e "  ❤️  Health:      \033]8;;https://$DOMAIN/api/health\033\\https://$DOMAIN/api/health\033]8;;\033\\"
+else
+    echo "Application accessible at:"
+    echo ""
+    echo -e "  🌐 Frontend:    \033]8;;http://localhost\033\\http://localhost\033]8;;\033\\"
+    echo -e "  🔧 Backend API: \033]8;;http://localhost:8000\033\\http://localhost:8000\033]8;;\033\\"
+    echo -e "  📚 API Docs:    \033]8;;http://localhost:8000/docs\033\\http://localhost:8000/docs\033]8;;\033\\"
+    echo -e "  ❤️  Health:      \033]8;;http://localhost:8000/api/health\033\\http://localhost:8000/api/health\033]8;;\033\\"
+fi
+
+echo ""
+echo -e "${GREEN}(Click links above to open in browser)${NC}"
+echo ""
+
 echo "Current status:"
 docker-compose ps
 echo ""
 echo "Useful commands:"
 echo "  • View logs:        docker-compose logs -f"
-echo "  • Check health:     curl http://localhost:8000/api/health"
+echo "  • Check status:     scripts/info.sh"
 echo "  • Restart service:  docker-compose restart [backend|frontend]"
 echo ""

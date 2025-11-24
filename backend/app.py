@@ -100,7 +100,7 @@ class BackendApp:
         app = self.app
 
         @app.post("/api/jobs")
-        async def create_job(file: UploadFile = File(...), model: str = "ConvNext_REAL-ESRGAN.pth"):
+        async def create_job(file: UploadFile = File(...), model: str = "ConvNext_REAL-ESRGAN.pth", scale: int = 4):
             """Create a new image reconstruction job.
 
             Validates and saves the uploaded image file, then enqueues it for processing.
@@ -108,6 +108,7 @@ class BackendApp:
             Args:
                 file: Uploaded image file (multipart/form-data).
                 model: Model filename to use (default: ConvNext_REAL-ESRGAN.pth).
+                scale: Upscale factor (2x or 4x, default: 4).
 
             Returns:
                 JSON response with job_id: {"job_id": "abc123..."}
@@ -119,10 +120,10 @@ class BackendApp:
                 HTTPException 500: Internal server error during processing
             """
             job_id = uuid.uuid4().hex
-            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model}")
+            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model} and scale {scale}x")
             try:
                 upload_path = await self.validator.save(job_id, file)
-                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model)
+                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model, scale=scale)
                 logger.info(f"API: Job {job_id} created successfully")
                 return {"job_id": job_id}
             except HTTPException as e:
@@ -280,6 +281,10 @@ class BackendApp:
                 },
                 "ui": {
                     "title": loader.get("frontend.ui.title", "Image Reconstruction"),
+                    "enable_model_selection": loader.get("frontend.ui.enable_model_selection", False),
+                    "enable_scale_selection": loader.get("frontend.ui.enable_scale_selection", True),
+                    "scale_options": loader.get("frontend.ui.scale_options", [2, 4]),
+                    "default_scale": loader.get("frontend.ui.default_scale", 4),
                     "labels": loader.get("frontend.ui.labels", default_labels),
                     "messages": loader.get("frontend.ui.messages", default_messages),
                     "preview_enabled": loader.get("frontend.ui.preview_enabled", True),

@@ -79,6 +79,22 @@ scripts/stop.sh
 
 ---
 
+### Check Status & Resources
+
+```bash
+scripts/info.sh
+```
+
+Shows:
+- Application status (running/stopped)
+- Uptime
+- CPU & Memory usage (MB)
+- Storage usage (GB)
+- Network ports
+- Health check
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -87,6 +103,7 @@ image-reconstruction/
 │   ├── deploy.sh           # Deploy to VPS with SSL
 │   ├── restart.sh          # Update & restart
 │   ├── stop.sh             # Stop services
+│   ├── info.sh             # Show status & resources
 │   └── download-models.sh  # Download model files
 ├── backend/                # FastAPI backend
 │   └── model/              # Model files (.pth)
