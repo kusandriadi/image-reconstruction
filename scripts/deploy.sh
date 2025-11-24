@@ -308,8 +308,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/model:/app/model:ro
+      - ./backend/data:/app/backend/data
+      - ./backend/model:/app/backend/model:ro
       - ./config.json:/app/config.json:ro
     environment:
       - PYTHONUNBUFFERED=1
