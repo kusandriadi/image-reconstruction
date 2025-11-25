@@ -51,21 +51,25 @@ class JobManager:
         >>> manager.cancel("abc123")
     """
 
-    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str):
+    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN_X4.pth"):
         """Initialize the job manager.
 
         Args:
             reconstructor: Reconstructor instance for processing images.
             uploads_dir: Directory path containing uploaded input files.
             outputs_dir: Directory path where results will be saved.
+            model_dir: Directory path containing model files.
+            default_model_filename: Default model filename from config.
         """
         logger.info("Initializing JobManager")
         self.reconstructor = reconstructor
         self.uploads_dir = uploads_dir
         self.outputs_dir = outputs_dir
+        self.model_dir = model_dir
+        self.default_model_filename = default_model_filename
         self._jobs: Dict[str, Dict] = {}
         self._lock = threading.Lock()
-        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}")
+        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Model dir: {model_dir}, Default model: {default_model_filename}")
 
     def _update(self, job_id: str, **kwargs):
         """Thread-safe update of job metadata.
@@ -80,7 +84,7 @@ class JobManager:
         with self._lock:
             self._jobs[job_id].update(kwargs)
 
-    def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth"):
+    def enqueue(self, job_id: str, input_path: str, model_filename: str = None):
         """Create and enqueue a new reconstruction job.
 
         Creates a new job entry with initial metadata and starts a background worker
@@ -90,7 +94,7 @@ class JobManager:
         Args:
             job_id: Unique identifier for this job (typically a UUID).
             input_path: Full path to the uploaded input image file.
-            model_filename: Filename of the model to use (default: ConvNext_REAL-ESRGAN.pth).
+            model_filename: Filename of the model to use (defaults to configured model).
 
         Example:
             >>> manager.enqueue(
@@ -99,6 +103,8 @@ class JobManager:
             ...     model_filename="REAL-ESRGAN.pth"
             ... )
         """
+        if model_filename is None:
+            model_filename = self.default_model_filename
         logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename}")
         with self._lock:
             self._jobs[job_id] = {
@@ -210,10 +216,10 @@ class JobManager:
         self._update(job_id, status="running", message="starting", start_time=start_time)
         job = self.get(job_id)
         try:
-            model_filename = job.get("model_filename", "ConvNext_REAL-ESRGAN.pth")
+            model_filename = job.get("model_filename", self.default_model_filename)
             logger.warning(f"Job {job_id}: Using model '{model_filename}'")
-            # Construct model path from filename
-            model_path = Path("backend/model") / model_filename
+            # Construct model path from filename using configured model directory
+            model_path = Path(self.model_dir) / model_filename
             logger.warning(f"Model path: {model_path}")
             # Run the reconstruction process
             self.reconstructor.reconstruct(

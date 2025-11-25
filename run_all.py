@@ -145,8 +145,11 @@ def main():
     # Determine if browser should be opened (config default, unless --no-browser is specified)
     should_open_browser = default_auto_open and not args.no_browser
 
-    # Ensure dirs exist for backend data
-    for d in [BACKEND_DIR / "data" / "uploads", BACKEND_DIR / "data" / "outputs", BACKEND_DIR / "data" / "models"]:
+    # Ensure dirs exist for backend data using paths from config
+    uploads_dir = ROOT / config.get("backend", {}).get("directories", {}).get("uploads_dir", "backend/data/uploads")
+    outputs_dir = ROOT / config.get("backend", {}).get("directories", {}).get("outputs_dir", "backend/data/outputs")
+    models_dir = ROOT / config.get("backend", {}).get("directories", {}).get("models_dir", "backend/data/models")
+    for d in [uploads_dir, outputs_dir, models_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
     py = ensure_venv(VENV_DIR)

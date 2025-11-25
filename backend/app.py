@@ -64,6 +64,8 @@ class BackendApp:
             reconstructor=self.reconstructor,
             uploads_dir=str(self.config.uploads_dir),
             outputs_dir=str(self.config.outputs_dir),
+            model_dir=str(self.config.model_dir),
+            default_model_filename=self.config.default_model_filename,
         )
         self.validator = UploadValidator(
             allowed_mime=self.config.allowed_mime,
@@ -126,16 +128,17 @@ class BackendApp:
         - GET /api/health: Health check endpoint
         """
         app = self.app
+        default_model = self.config.default_model_filename
 
         @app.post("/api/jobs")
-        async def create_job(file: UploadFile = File(...), model: str = "ConvNext_REAL-ESRGAN.pth"):
+        async def create_job(file: UploadFile = File(...), model: str = default_model):
             """Create a new image reconstruction job.
 
             Validates and saves the uploaded image file, then enqueues it for processing.
 
             Args:
                 file: Uploaded image file (multipart/form-data).
-                model: Model filename to use (default: ConvNext_REAL-ESRGAN.pth).
+                model: Model filename to use (default from config.json).
 
             Returns:
                 JSON response with job_id: {"job_id": "abc123..."}

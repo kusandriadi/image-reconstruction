@@ -75,6 +75,24 @@ class Config:
         """
         return int(self.max_upload_mb * 1024 * 1024)
 
+    @property
+    def default_model_filename(self) -> str:
+        """Get the default model filename from the configured model path.
+
+        Returns:
+            Model filename (e.g., "ConvNext_REAL-ESRGAN_X4.pth").
+        """
+        return self.model_path.name
+
+    @property
+    def model_dir(self) -> Path:
+        """Get the model directory from the configured model path.
+
+        Returns:
+            Model directory path (e.g., Path("backend/model")).
+        """
+        return self.model_path.parent
+
     @staticmethod
     def from_config() -> "Config":
         """Create Config instance from centralized config.json file.
