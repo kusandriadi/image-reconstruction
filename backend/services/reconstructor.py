@@ -263,7 +263,7 @@ class Reconstructor:
             ...     "output.png",
             ...     progress=track_progress,
             ...     cancelled=is_cancelled,
-            ...     model_path="backend/model/REAL-ESRGAN.pth"
+            ...     model_path="backend/model/REAL-ESRGAN_X4.pth"
             ... )
         """
         # If a different model path is provided, reload the model

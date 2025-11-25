@@ -155,7 +155,7 @@ class JobManager:
             >>> manager.enqueue(
             ...     job_id="abc123",
             ...     input_path="/uploads/abc123_photo.png",
-            ...     model_filename="REAL-ESRGAN.pth"
+            ...     model_filename="REAL-ESRGAN_X4.pth"
             ... )
         """
         if model_filename is None:

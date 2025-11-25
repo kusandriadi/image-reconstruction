@@ -8,8 +8,8 @@ def verify_models():
     print("=" * 60)
     print()
 
-    model1_path = Path("backend/model/ConvNext_REAL-ESRGAN.pth")
-    model2_path = Path("backend/model/REAL-ESRGAN.pth")
+    model1_path = Path("backend/model/ConvNext_REAL-ESRGAN_X4.pth")
+    model2_path = Path("backend/model/REAL-ESRGAN_X4.pth")
 
     # Check if files exist
     print("Checking if model files exist...")
