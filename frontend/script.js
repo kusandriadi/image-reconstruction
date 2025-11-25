@@ -318,7 +318,12 @@ function startPolling() {
     if (!currentJobId) return;
     try {
       const res = await fetch(`${BACKEND}/api/jobs/${currentJobId}`);
-      if (!res.ok) throw new Error('Status check failed');
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error('Job not found (404)');
+        }
+        throw new Error('Status check failed');
+      }
       const job = await res.json();
       const pct = Math.max(0, Math.min(100, job.progress || 0));
       updateProgress(pct);
@@ -358,9 +363,19 @@ function startPolling() {
         if (progressText) progressText.textContent = failedText;
       }
     } catch (e) {
-      // show but keep trying briefly
-      const msg = formatMessage(appConfig.ui.messages.polling_error, { error: e.message });
-      statusEl.textContent = msg;
+      // Check if it's a 404 error (job not found - likely backend restarted)
+      if (e.message.includes('404')) {
+        // Stop polling on 404 to avoid spamming the backend
+        clearInterval(pollTimer);
+        cancelBtn.disabled = true;
+        resetBtn.classList.remove('hidden');
+        statusEl.textContent = 'Job not found (server may have restarted)';
+        if (progressText) progressText.textContent = 'Error';
+      } else {
+        // show but keep trying for other errors
+        const msg = formatMessage(appConfig.ui.messages.polling_error, { error: e.message });
+        statusEl.textContent = msg;
+      }
     }
   }, pollingInterval);
 }

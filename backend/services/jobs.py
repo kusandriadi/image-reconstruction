@@ -2,10 +2,11 @@
 
 This module provides the JobManager class that handles the lifecycle of reconstruction
 jobs including queueing, execution in background threads, status tracking, progress
-reporting, and cancellation.
+reporting, and cancellation. Jobs are persisted to disk to survive restarts.
 """
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -37,6 +38,7 @@ class JobManager:
         reconstructor: The Reconstructor instance used for processing.
         uploads_dir: Directory containing uploaded input images.
         outputs_dir: Directory where reconstructed images are saved.
+        jobs_dir: Directory where job metadata is persisted to disk.
 
     Thread Safety:
         All public methods are thread-safe and can be called concurrently from
@@ -51,21 +53,72 @@ class JobManager:
         >>> manager.cancel("abc123")
     """
 
-    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str):
+    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None):
         """Initialize the job manager.
 
         Args:
             reconstructor: Reconstructor instance for processing images.
             uploads_dir: Directory path containing uploaded input files.
             outputs_dir: Directory path where results will be saved.
+            jobs_dir: Directory path where job metadata is persisted (optional).
         """
         logger.info("Initializing JobManager")
         self.reconstructor = reconstructor
         self.uploads_dir = uploads_dir
         self.outputs_dir = outputs_dir
+        self.jobs_dir = jobs_dir or str(Path(outputs_dir).parent / "jobs")
         self._jobs: Dict[str, Dict] = {}
         self._lock = threading.Lock()
-        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}")
+
+        # Create jobs directory if it doesn't exist
+        Path(self.jobs_dir).mkdir(parents=True, exist_ok=True)
+
+        # Load existing jobs from disk
+        self._load_jobs()
+
+        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Jobs: {self.jobs_dir}")
+
+    def _load_jobs(self):
+        """Load all jobs from disk on startup."""
+        logger.info("Loading persisted jobs from disk")
+        jobs_path = Path(self.jobs_dir)
+        loaded_count = 0
+
+        for job_file in jobs_path.glob("*.json"):
+            try:
+                with open(job_file, "r") as f:
+                    job_data = json.load(f)
+                    job_id = job_data.get("job_id")
+                    if job_id:
+                        # Mark running jobs as failed on restart (they were interrupted)
+                        if job_data.get("status") in ("queued", "running", "cancelling"):
+                            job_data["status"] = "failed"
+                            job_data["message"] = "interrupted by server restart"
+                            job_data["error"] = "Server was restarted while job was processing"
+
+                        self._jobs[job_id] = job_data
+                        loaded_count += 1
+                        logger.debug(f"Loaded job {job_id} with status {job_data['status']}")
+            except Exception as e:
+                logger.error(f"Failed to load job file {job_file}: {e}")
+
+        logger.info(f"Loaded {loaded_count} jobs from disk")
+
+    def _save_job(self, job_id: str):
+        """Save a single job to disk.
+
+        Args:
+            job_id: Job identifier to save.
+        """
+        try:
+            job_file = Path(self.jobs_dir) / f"{job_id}.json"
+            with self._lock:
+                job_data = self._jobs.get(job_id)
+                if job_data:
+                    with open(job_file, "w") as f:
+                        json.dump(job_data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save job {job_id} to disk: {e}")
 
     def _update(self, job_id: str, **kwargs):
         """Thread-safe update of job metadata.
@@ -79,6 +132,8 @@ class JobManager:
         """
         with self._lock:
             self._jobs[job_id].update(kwargs)
+        # Persist to disk after every update
+        self._save_job(job_id)
 
     def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth", scale: int = 4):
         """Create and enqueue a new reconstruction job.
@@ -117,6 +172,9 @@ class JobManager:
                 "start_time": None,
                 "elapsed_seconds": None,
             }
+
+        # Save job to disk immediately
+        self._save_job(job_id)
 
         # Start background worker thread for this job
         t = threading.Thread(target=self._worker, args=(job_id,), daemon=True)

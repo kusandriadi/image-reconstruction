@@ -36,6 +36,7 @@ class Config:
         uploads_dir: Directory where uploaded images are temporarily stored.
         outputs_dir: Directory where reconstructed images are saved.
         models_dir: Directory where ML models are stored.
+        jobs_dir: Directory where job metadata is persisted.
         model_path: Full path to the PyTorch model file.
         allowed_origins: List of allowed CORS origins for API access.
         max_upload_mb: Maximum allowed upload file size in megabytes.
@@ -54,6 +55,7 @@ class Config:
     uploads_dir: Path
     outputs_dir: Path
     models_dir: Path
+    jobs_dir: Path
     model_path: Path
     allowed_origins: List[str]
     max_upload_mb: float = 10.0
@@ -113,6 +115,7 @@ class Config:
         uploads_dir_rel = loader.get("backend.directories.uploads_dir", "backend/data/uploads")
         outputs_dir_rel = loader.get("backend.directories.outputs_dir", "backend/data/outputs")
         models_dir_rel = loader.get("backend.directories.models_dir", "backend/data/models")
+        jobs_dir_rel = loader.get("backend.directories.jobs_dir", "backend/data/jobs")
 
         # Convert to absolute paths
         project_root = base_dir.parent
@@ -120,10 +123,11 @@ class Config:
         uploads_dir = project_root / uploads_dir_rel
         outputs_dir = project_root / outputs_dir_rel
         models_dir = project_root / models_dir_rel
+        jobs_dir = project_root / jobs_dir_rel
 
         # Create all required directories
         logger.info("Creating required directories")
-        for d in (uploads_dir, outputs_dir, models_dir):
+        for d in (uploads_dir, outputs_dir, models_dir, jobs_dir):
             d.mkdir(parents=True, exist_ok=True)
             logger.debug(f"  ✓ {d}")
 
@@ -155,6 +159,7 @@ class Config:
             uploads_dir=uploads_dir,
             outputs_dir=outputs_dir,
             models_dir=models_dir,
+            jobs_dir=jobs_dir,
             model_path=model_path,
             allowed_origins=allowed_origins,
             max_upload_mb=max_upload_mb,

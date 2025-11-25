@@ -207,6 +207,7 @@ cython_debug/
 # Project data
 backend/data/uploads/
 backend/data/outputs/
+backend/data/jobs/
 backend/data/models/*.pth
 backend/model/*.pth
 .cursorignore

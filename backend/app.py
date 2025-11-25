@@ -62,6 +62,7 @@ class BackendApp:
             reconstructor=self.reconstructor,
             uploads_dir=str(self.config.uploads_dir),
             outputs_dir=str(self.config.outputs_dir),
+            jobs_dir=str(self.config.jobs_dir),
         )
         self.validator = UploadValidator(
             allowed_mime=self.config.allowed_mime,

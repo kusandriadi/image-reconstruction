@@ -14,7 +14,7 @@
       "device_options": ["auto", "cpu", "cuda"]
     },
     "upload": {
-      "max_size_mb": 10,
+      "max_size_mb": 1,
       "allowed_mime_types": [
         "image/png",
         "image/jpeg",
