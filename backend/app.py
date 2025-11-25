@@ -77,6 +77,7 @@ class BackendApp:
         self.cleanup = CleanupService(
             uploads_dir=str(self.config.uploads_dir),
             outputs_dir=str(self.config.outputs_dir),
+            jobs_dir=str(self.config.jobs_dir),
             interval_hours=self.config.cleanup_interval_hours,
             max_age_hours=self.config.cleanup_max_age_hours,
             enabled=self.config.cleanup_enabled,
