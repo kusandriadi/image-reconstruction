@@ -135,14 +135,14 @@ echo ""
 ################################################################################
 print_info "[5/11] Checking model files..."
 MODEL_FOUND=false
-if [ -f "backend/model/REAL-ESRGAN.pth" ] && [ -f "backend/model/ConvNext_REAL-ESRGAN.pth" ]; then
+if [ -f "backend/model/REAL-ESRGAN_X4.pth" ] && [ -f "backend/model/ConvNext_REAL-ESRGAN_X4.pth" ]; then
     MODEL_FOUND=true
     print_success "Model files found"
 else
     print_warning "Model files not found!"
     print_warning "Please upload these files to backend/model/:"
-    echo "  - REAL-ESRGAN.pth"
-    echo "  - ConvNext_REAL-ESRGAN.pth"
+    echo "  - REAL-ESRGAN_X4.pth"
+    echo "  - ConvNext_REAL-ESRGAN_X4.pth"
     echo ""
     read -p "Continue without model files? (y/N) " -n 1 -r
     echo ""
@@ -300,18 +300,16 @@ fi
 
 # Create production docker-compose.yml
 cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
 services:
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/model:/app/model:ro
+      - ./backend/data:/app/backend/data
+      - ./backend/model:/app/backend/model:ro
       - ./config.json:/app/config.json:ro
     environment:
       - PYTHONUNBUFFERED=1
@@ -337,8 +335,11 @@ services:
 EOF
 
 # Build and start services
+print_info "Cleaning Docker cache..."
+docker builder prune -f > /dev/null 2>&1
+
 print_info "Building Docker images (this may take several minutes)..."
-docker-compose build --quiet
+docker-compose build --no-cache --quiet
 
 print_info "Starting services..."
 docker-compose up -d

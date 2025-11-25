@@ -64,7 +64,6 @@ class Reconstructor:
         self.model_path = str(model_path)
         self.model_loaded = False
         self.model: Optional[object] = None
-        self.current_scale: Optional[int] = None  # Track current model scale
 
         # Device selection: environment variable DEVICE or automatic
         requested = os.getenv("DEVICE", None)
@@ -82,7 +81,7 @@ class Reconstructor:
 
         logger.info(f"Device selected: {self.device}")
 
-    def _lazy_load(self, progress: Optional[Callable[[int, str], None]] = None, scale: int = 4):
+    def _lazy_load(self, progress: Optional[Callable[[int, str], None]] = None):
         """Lazily load the PyTorch model on first use.
 
         This method loads the model only when first needed, not during initialization.
@@ -93,21 +92,14 @@ class Reconstructor:
         Args:
             progress: Optional callback function(percent: int, message: str) for
                      reporting loading progress.
-            scale: Upscale factor for the model architecture (2 or 4).
 
         Note:
             This method is called automatically by reconstruct() and should not be
             called directly.
         """
-        # Check if we need to reload due to scale change
-        if self.model_loaded and self.current_scale == scale:
-            logger.debug(f"Model already loaded with scale {scale}, skipping")
+        if self.model_loaded:
+            logger.debug("Model already loaded, skipping")
             return
-
-        if self.model_loaded and self.current_scale != scale:
-            logger.warning(f"🔄 SCALE CHANGE: {self.current_scale}x -> {scale}x - Reloading model...")
-            self.model_loaded = False
-            self.model = None
 
         logger.warning(f"⚙️ LOADING MODEL: {self.model_path}")
         if progress:
@@ -153,13 +145,13 @@ class Reconstructor:
                         # If we have a state dict, need to load it into a model architecture
                         if state_dict is not None:
                             from backend.models.rrdbnet_arch import RRDBNet
-                            logger.warning(f"🏗️ Creating RRDBNet model architecture with scale={scale}")
+                            logger.warning("🏗️ Creating RRDBNet model architecture")
                             # Standard Real-ESRGAN configuration
                             self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
-                                               num_block=23, num_grow_ch=32, scale=scale)
+                                               num_block=23, num_grow_ch=32, scale=4)
                             logger.warning(f"📥 Loading state dict into model from: {self.model_path}")
                             self.model.load_state_dict(state_dict, strict=True)
-                            logger.warning(f"✅ Model loaded successfully with scale {scale}x: {Path(self.model_path).name}")
+                            logger.warning(f"✅ Model loaded successfully: {Path(self.model_path).name}")
                     else:
                         # Loaded object is already a model
                         logger.info("Checkpoint is a complete model")
@@ -178,12 +170,12 @@ class Reconstructor:
                         if isinstance(loaded, dict) and 'params_ema' in loaded:
                             from backend.models.rrdbnet_arch import RRDBNet
                             self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
-                                               num_block=23, num_grow_ch=32, scale=scale)
+                                               num_block=23, num_grow_ch=32, scale=4)
                             self.model.load_state_dict(loaded['params_ema'], strict=True)
                         elif isinstance(loaded, dict) and 'params' in loaded:
                             from backend.models.rrdbnet_arch import RRDBNet
                             self.model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64,
-                                               num_block=23, num_grow_ch=32, scale=scale)
+                                               num_block=23, num_grow_ch=32, scale=4)
                             self.model.load_state_dict(loaded['params'], strict=True)
                         else:
                             self.model = loaded
@@ -219,8 +211,7 @@ class Reconstructor:
         if progress:
             progress(15, f"model ready on {self.device}")
         self.model_loaded = True
-        self.current_scale = scale  # Store the scale used for this model
-        logger.info(f"Model initialization complete with scale {scale}x. Mode: {'PyTorch' if self.model else 'Pass-through'}")
+        logger.info(f"Model initialization complete. Mode: {'PyTorch' if self.model else 'Pass-through'}")
 
     def reconstruct(
         self,
@@ -228,8 +219,7 @@ class Reconstructor:
         output_path: str,
         progress: Optional[Callable[[int, str], None]] = None,
         cancelled: Optional[Callable[[], bool]] = None,
-        model_path: Optional[str] = None,
-        scale: int = 4
+        model_path: Optional[str] = None
     ):
         """Reconstruct an image using the loaded PyTorch model.
 
@@ -255,8 +245,6 @@ class Reconstructor:
             model_path: Optional path to a different model file to use for this
                        reconstruction. If provided and different from the current
                        model, the model will be reloaded.
-            scale: Upscale factor for reconstruction (2x or 4x, default: 4).
-                  Model will be reloaded if scale changes.
 
         Raises:
             Cancelled: If the cancelled callback returns True during processing.
@@ -275,8 +263,7 @@ class Reconstructor:
             ...     "output.png",
             ...     progress=track_progress,
             ...     cancelled=is_cancelled,
-            ...     model_path="backend/model/REAL-ESRGAN.pth",
-            ...     scale=4
+            ...     model_path="backend/model/REAL-ESRGAN.pth"
             ... )
         """
         # If a different model path is provided, reload the model
@@ -296,10 +283,10 @@ class Reconstructor:
                 logger.info(f"Reconstruction cancelled for {input_path}")
                 raise Cancelled()
 
-        logger.info(f"Starting reconstruction: {input_path} -> {output_path} with scale {scale}x")
+        logger.info(f"Starting reconstruction: {input_path} -> {output_path}")
 
-        # Load model lazily on first use with specified scale
-        self._lazy_load(progress, scale=scale)
+        # Load model lazily on first use
+        self._lazy_load(progress)
 
         # Read and convert input image to RGB
         step(20, "reading input")

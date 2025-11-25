@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .config import Config
 from .logger import setup_logger
+from .services.cleanup import CleanupService
 from .services.jobs import JobManager
 from .services.reconstructor import Reconstructor
 from .services.validators import UploadValidator
@@ -37,6 +38,7 @@ class BackendApp:
         reconstructor: Image reconstruction service.
         jobs: Job queue and lifecycle manager.
         validator: Upload file validation service.
+        cleanup: Automatic file cleanup service.
 
     Example:
         >>> config = Config.from_env()
@@ -63,6 +65,8 @@ class BackendApp:
             uploads_dir=str(self.config.uploads_dir),
             outputs_dir=str(self.config.outputs_dir),
             jobs_dir=str(self.config.jobs_dir),
+            model_dir=str(self.config.model_dir),
+            default_model_filename=self.config.default_model_filename,
         )
         self.validator = UploadValidator(
             allowed_mime=self.config.allowed_mime,
@@ -70,8 +74,16 @@ class BackendApp:
             max_bytes=self.config.max_upload_bytes,
             uploads_dir=self.config.uploads_dir,
         )
+        self.cleanup = CleanupService(
+            uploads_dir=str(self.config.uploads_dir),
+            outputs_dir=str(self.config.outputs_dir),
+            interval_hours=self.config.cleanup_interval_hours,
+            max_age_hours=self.config.cleanup_max_age_hours,
+            enabled=self.config.cleanup_enabled,
+        )
 
         self._register_routes()
+        self._register_lifecycle_events()
         logger.info("BackendApp initialization complete")
 
     def _configure_cors(self) -> None:
@@ -88,6 +100,24 @@ class BackendApp:
             allow_headers=["*"],
         )
 
+    def _register_lifecycle_events(self) -> None:
+        """Register application lifecycle events (startup and shutdown).
+
+        Sets up event handlers to start the cleanup service when the application
+        starts and stop it when the application shuts down.
+        """
+        @self.app.on_event("startup")
+        async def startup_event():
+            """Start background services on application startup."""
+            logger.info("Application startup - starting background services")
+            self.cleanup.start()
+
+        @self.app.on_event("shutdown")
+        async def shutdown_event():
+            """Stop background services on application shutdown."""
+            logger.info("Application shutdown - stopping background services")
+            self.cleanup.stop()
+
     def _register_routes(self) -> None:
         """Register all API endpoints with the FastAPI application.
 
@@ -99,17 +129,17 @@ class BackendApp:
         - GET /api/health: Health check endpoint
         """
         app = self.app
+        default_model = self.config.default_model_filename
 
         @app.post("/api/jobs")
-        async def create_job(file: UploadFile = File(...), model: str = "ConvNext_REAL-ESRGAN.pth", scale: int = 4):
+        async def create_job(file: UploadFile = File(...), model: str = default_model):
             """Create a new image reconstruction job.
 
             Validates and saves the uploaded image file, then enqueues it for processing.
 
             Args:
                 file: Uploaded image file (multipart/form-data).
-                model: Model filename to use (default: ConvNext_REAL-ESRGAN.pth).
-                scale: Upscale factor (2x or 4x, default: 4).
+                model: Model filename to use (default from config.json).
 
             Returns:
                 JSON response with job_id: {"job_id": "abc123..."}
@@ -121,10 +151,10 @@ class BackendApp:
                 HTTPException 500: Internal server error during processing
             """
             job_id = uuid.uuid4().hex
-            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model} and scale {scale}x")
+            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model}")
             try:
                 upload_path = await self.validator.save(job_id, file)
-                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model, scale=scale)
+                self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model)
                 logger.info(f"API: Job {job_id} created successfully")
                 return {"job_id": job_id}
             except HTTPException as e:
@@ -283,9 +313,6 @@ class BackendApp:
                 "ui": {
                     "title": loader.get("frontend.ui.title", "Image Reconstruction"),
                     "enable_model_selection": loader.get("frontend.ui.enable_model_selection", False),
-                    "enable_scale_selection": loader.get("frontend.ui.enable_scale_selection", True),
-                    "scale_options": loader.get("frontend.ui.scale_options", [2, 4]),
-                    "default_scale": loader.get("frontend.ui.default_scale", 4),
                     "labels": loader.get("frontend.ui.labels", default_labels),
                     "messages": loader.get("frontend.ui.messages", default_messages),
                     "preview_enabled": loader.get("frontend.ui.preview_enabled", True),

@@ -5,7 +5,6 @@ const okBtn = $('#okBtn');
 const cancelBtn = $('#cancelBtn');
 const resetBtn = $('#resetBtn');
 const modelSelect = $('#modelSelect');
-const scaleSelect = $('#scaleSelect');
 const bar = $('#bar');
 const progress = $('#progress');
 const statusEl = $('#status');
@@ -30,9 +29,12 @@ let BACKEND = window.BACKEND_BASE;
 // Load configuration from backend on startup
 async function loadConfig() {
   try {
-    // If no BACKEND set, try to get from config
+    // If no BACKEND set, use current origin (works in production) or localhost (dev)
     if (!BACKEND) {
-      BACKEND = 'http://localhost:8000'; // Temporary default just for initial config fetch
+      // In production (with Nginx), use current origin
+      // In development, use localhost:8000
+      const isProduction = window.location.protocol === 'https:' || window.location.hostname !== 'localhost';
+      BACKEND = isProduction ? window.location.origin : 'http://localhost:8000';
     }
 
     const res = await fetch(`${BACKEND}/api/config`);
@@ -100,30 +102,6 @@ function applyUIConfig() {
       modelSelectorElement.style.display = 'none';
     } else {
       modelSelectorElement.style.display = 'flex';
-    }
-  }
-
-  // Show/hide and populate scale selector based on config
-  const scaleSelectorElement = document.querySelector('.scale-selector');
-  if (scaleSelectorElement) {
-    if (appConfig.ui?.enable_scale_selection === false) {
-      scaleSelectorElement.style.display = 'none';
-    } else {
-      scaleSelectorElement.style.display = 'flex';
-
-      // Populate scale options from config
-      if (appConfig.ui?.scale_options && scaleSelect) {
-        scaleSelect.innerHTML = '';
-        appConfig.ui.scale_options.forEach(scale => {
-          const option = document.createElement('option');
-          option.value = scale;
-          option.textContent = `${scale}x`;
-          if (scale === appConfig.ui.default_scale) {
-            option.selected = true;
-          }
-          scaleSelect.appendChild(option);
-        });
-      }
     }
   }
 }
@@ -268,11 +246,6 @@ okBtn.addEventListener('click', async () => {
   // Add selected model to form data
   if (modelSelect) {
     form.append('model', modelSelect.value);
-  }
-
-  // Add selected scale to form data
-  if (scaleSelect) {
-    form.append('scale', scaleSelect.value);
   }
 
   try {

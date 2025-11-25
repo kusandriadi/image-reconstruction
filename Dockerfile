@@ -32,8 +32,8 @@ RUN mkdir -p /app/backend/data/uploads \
     && mkdir -p /app/backend/data/outputs \
     && mkdir -p /app/backend/model
 
-# Copy models (if they exist)
-COPY backend/model/*.pth /app/backend/model/ 2>/dev/null || true
+# Note: Model files will be mounted as volumes at runtime
+# No need to copy them during build
 
 # Expose port
 EXPOSE 8000

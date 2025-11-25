@@ -53,6 +53,7 @@ class JobManager:
         >>> manager.cancel("abc123")
     """
 
+    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN_X4.pth"):
     def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None):
         """Initialize the job manager.
 
@@ -61,12 +62,16 @@ class JobManager:
             uploads_dir: Directory path containing uploaded input files.
             outputs_dir: Directory path where results will be saved.
             jobs_dir: Directory path where job metadata is persisted (optional).
+            model_dir: Directory path containing model files.
+            default_model_filename: Default model filename from config.
         """
         logger.info("Initializing JobManager")
         self.reconstructor = reconstructor
         self.uploads_dir = uploads_dir
         self.outputs_dir = outputs_dir
         self.jobs_dir = jobs_dir or str(Path(outputs_dir).parent / "jobs")
+        self.model_dir = model_dir
+        self.default_model_filename = default_model_filename
         self._jobs: Dict[str, Dict] = {}
         self._lock = threading.Lock()
 
@@ -119,6 +124,7 @@ class JobManager:
                         json.dump(job_data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save job {job_id} to disk: {e}")
+        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Model dir: {model_dir}, Default model: {default_model_filename}")
 
     def _update(self, job_id: str, **kwargs):
         """Thread-safe update of job metadata.
@@ -135,7 +141,7 @@ class JobManager:
         # Persist to disk after every update
         self._save_job(job_id)
 
-    def enqueue(self, job_id: str, input_path: str, model_filename: str = "ConvNext_REAL-ESRGAN.pth", scale: int = 4):
+    def enqueue(self, job_id: str, input_path: str, model_filename: str = None):
         """Create and enqueue a new reconstruction job.
 
         Creates a new job entry with initial metadata and starts a background worker
@@ -145,18 +151,18 @@ class JobManager:
         Args:
             job_id: Unique identifier for this job (typically a UUID).
             input_path: Full path to the uploaded input image file.
-            model_filename: Filename of the model to use (default: ConvNext_REAL-ESRGAN.pth).
-            scale: Upscale factor (2x or 4x, default: 4).
+            model_filename: Filename of the model to use (defaults to configured model).
 
         Example:
             >>> manager.enqueue(
             ...     job_id="abc123",
             ...     input_path="/uploads/abc123_photo.png",
-            ...     model_filename="REAL-ESRGAN.pth",
-            ...     scale=4
+            ...     model_filename="REAL-ESRGAN.pth"
             ... )
         """
-        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename} and scale {scale}x")
+        if model_filename is None:
+            model_filename = self.default_model_filename
+        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename}")
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
@@ -166,7 +172,6 @@ class JobManager:
                 "input_path": input_path,
                 "output_path": str(Path(self.outputs_dir) / f"{job_id}.png"),
                 "model_filename": model_filename,
-                "scale": scale,
                 "cancel": False,
                 "error": None,
                 "start_time": None,
@@ -271,10 +276,10 @@ class JobManager:
         self._update(job_id, status="running", message="starting", start_time=start_time)
         job = self.get(job_id)
         try:
-            model_filename = job.get("model_filename", "ConvNext_REAL-ESRGAN.pth")
+            model_filename = job.get("model_filename", self.default_model_filename)
             logger.warning(f"Job {job_id}: Using model '{model_filename}'")
-            # Construct model path from filename
-            model_path = Path("backend/model") / model_filename
+            # Construct model path from filename using configured model directory
+            model_path = Path(self.model_dir) / model_filename
             logger.warning(f"Model path: {model_path}")
             # Run the reconstruction process
             self.reconstructor.reconstruct(
