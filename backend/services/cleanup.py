@@ -24,6 +24,7 @@ class CleanupService:
     Attributes:
         uploads_dir: Directory containing uploaded input images.
         outputs_dir: Directory containing processed output images.
+        jobs_dir: Directory containing job metadata JSON files.
         interval_hours: How often to run cleanup (in hours).
         max_age_hours: Maximum age of files before deletion (in hours).
         enabled: Whether cleanup is enabled.
@@ -33,6 +34,7 @@ class CleanupService:
         self,
         uploads_dir: str,
         outputs_dir: str,
+        jobs_dir: str = None,
         interval_hours: float = 1.0,
         max_age_hours: float = 1.0,
         enabled: bool = True
@@ -42,12 +44,14 @@ class CleanupService:
         Args:
             uploads_dir: Directory path containing uploaded files.
             outputs_dir: Directory path containing output files.
+            jobs_dir: Directory path containing job metadata files (optional).
             interval_hours: Interval between cleanup runs in hours (default: 1.0).
             max_age_hours: Maximum file age in hours before deletion (default: 1.0).
             enabled: Whether to enable automatic cleanup (default: True).
         """
         self.uploads_dir = Path(uploads_dir)
         self.outputs_dir = Path(outputs_dir)
+        self.jobs_dir = Path(jobs_dir) if jobs_dir else Path(outputs_dir).parent / "jobs"
         self.interval_hours = interval_hours
         self.max_age_hours = max_age_hours
         self.enabled = enabled
@@ -57,7 +61,8 @@ class CleanupService:
 
         logger.info(
             f"CleanupService initialized: enabled={enabled}, "
-            f"interval={interval_hours}h, max_age={max_age_hours}h"
+            f"interval={interval_hours}h, max_age={max_age_hours}h, "
+            f"jobs_dir={self.jobs_dir}"
         )
 
     def start(self) -> None:
@@ -105,7 +110,7 @@ class CleanupService:
         max_age_seconds = self.max_age_hours * 3600
         current_time = time.time()
 
-        for directory in [self.uploads_dir, self.outputs_dir]:
+        for directory in [self.uploads_dir, self.outputs_dir, self.jobs_dir]:
             if not directory.exists():
                 logger.warning(f"Directory does not exist: {directory}")
                 continue

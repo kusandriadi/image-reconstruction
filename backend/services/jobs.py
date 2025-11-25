@@ -53,8 +53,7 @@ class JobManager:
         >>> manager.cancel("abc123")
     """
 
-    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN_X4.pth"):
-    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None):
+    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN_X4.pth"):
         """Initialize the job manager.
 
         Args:
@@ -81,7 +80,7 @@ class JobManager:
         # Load existing jobs from disk
         self._load_jobs()
 
-        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Jobs: {self.jobs_dir}")
+        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Jobs: {self.jobs_dir}, Model dir: {model_dir}, Default model: {default_model_filename}")
 
     def _load_jobs(self):
         """Load all jobs from disk on startup."""
@@ -124,7 +123,6 @@ class JobManager:
                         json.dump(job_data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save job {job_id} to disk: {e}")
-        logger.info(f"JobManager initialized. Uploads: {uploads_dir}, Outputs: {outputs_dir}, Model dir: {model_dir}, Default model: {default_model_filename}")
 
     def _update(self, job_id: str, **kwargs):
         """Thread-safe update of job metadata.
@@ -287,8 +285,7 @@ class JobManager:
                 job["output_path"],
                 progress=progress,
                 cancelled=cancelled,
-                model_path=str(model_path),
-                scale=job.get("scale", 4)
+                model_path=str(model_path)
             )
             # Calculate elapsed time
             elapsed = time.time() - start_time
