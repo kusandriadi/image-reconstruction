@@ -15,6 +15,8 @@ const filePreview = $('#filePreview');
 const progressPercent = $('#progressPercent');
 const progressText = $('#progressText');
 const outputPlaceholder = $('#outputPlaceholder');
+const warningBanner = $('#warningBanner');
+const warningMessage = $('#warningMessage');
 
 let currentJobId = null;
 let pollTimer = null;
@@ -157,6 +159,13 @@ function updateProgress(percent) {
 function handleFileSelect(file) {
   // Validate file on selection
   if (file && appConfig) {
+    // Don't enable upload if model is unavailable
+    if (warningBanner && !warningBanner.classList.contains('hidden')) {
+      showFilePreview(file);
+      okBtn.disabled = true;
+      return;
+    }
+
     const fileSizeMB = file.size / (1024 * 1024);
 
     if (fileSizeMB > appConfig.upload.max_size_mb) {
@@ -249,17 +258,22 @@ okBtn.addEventListener('click', async () => {
   }
 
   try {
-    const res = await fetch(`${BACKEND}/api/jobs`, {
+    const res = await fetch(`${BACKEND}/api/reconstructions`, {
       method: 'POST',
       body: form
     });
-    if (!res.ok) throw new Error(appConfig.ui.messages.create_job_failed);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      const detail = errData?.detail || appConfig.ui.messages.create_job_failed;
+      throw new Error(detail);
+    }
     const data = await res.json();
     currentJobId = data.job_id;
     if (progressText) progressText.textContent = 'Processing...';
     startPolling();
   } catch (e) {
     statusEl.textContent = 'Error: ' + e.message;
+    progress.classList.add('hidden');
     cancelBtn.disabled = true;
     okBtn.disabled = false;
   }
@@ -270,7 +284,7 @@ cancelBtn.addEventListener('click', async () => {
   cancelBtn.disabled = true;
   statusEl.textContent = appConfig.ui.messages.cancelling;
   try {
-    await fetch(`${BACKEND}/api/jobs/${currentJobId}`, { method: 'DELETE' });
+    await fetch(`${BACKEND}/api/reconstructions/${currentJobId}`, { method: 'DELETE' });
   } catch (e) {
     // ignore
   }
@@ -290,7 +304,7 @@ function startPolling() {
   pollTimer = setInterval(async () => {
     if (!currentJobId) return;
     try {
-      const res = await fetch(`${BACKEND}/api/jobs/${currentJobId}`);
+      const res = await fetch(`${BACKEND}/api/reconstructions/${currentJobId}`);
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error('Job not found (404)');
@@ -311,7 +325,7 @@ function startPolling() {
         okBtn.disabled = true;
         resetBtn.classList.remove('hidden');
         if (progressText) progressText.textContent = 'Completed!';
-        const resultUrl = `${BACKEND}/api/jobs/${currentJobId}/result`;
+        const resultUrl = `${BACKEND}/api/reconstructions/${currentJobId}/result`;
 
         // Hide output placeholder
         if (outputPlaceholder) outputPlaceholder.classList.add('hidden');
@@ -353,10 +367,30 @@ function startPolling() {
   }, pollingInterval);
 }
 
+// Check backend health and warn if model is not available
+async function checkHealth() {
+  try {
+    const res = await fetch(`${BACKEND}/api/health`);
+    if (res.ok) {
+      const health = await res.json();
+      if (!health.model_available) {
+        if (warningBanner && warningMessage) {
+          warningMessage.textContent = 'Model files not found. Image processing is unavailable. Please download the model files (see README).';
+          warningBanner.classList.remove('hidden');
+        }
+        okBtn.disabled = true;
+      }
+    }
+  } catch (e) {
+    console.error('Health check failed:', e.message);
+  }
+}
+
 // Initialize app
 async function init() {
   await loadConfig();
   resetUI();
+  await checkHealth();
   console.log('Image Reconstruction UI initialized with config:', appConfig);
 }
 

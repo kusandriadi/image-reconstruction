@@ -2,23 +2,9 @@
 
 AI-powered image reconstruction using PyTorch REAL-ESRGAN models with modern web interface.
 
-![BINUS Style UI](https://img.shields.io/badge/UI-BINUS%20Orange-f3931b)
-![Docker Ready](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python)
-
 ---
 
-## ✨ Features
-
-- 🎨 BINUS-themed UI with drag & drop
-- 🤖 Dual models (ConvNext REAL-ESRGAN / REAL-ESRGAN)
-- 📊 Real-time progress tracking
-- 🐳 One-command Docker deployment
-- ⚡ Fast async API with FastAPI
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Download Model Files
 
@@ -28,9 +14,7 @@ scripts/download-models.sh
 
 Downloads `REAL-ESRGAN.pth` and `ConvNext_REAL-ESRGAN.pth` to `backend/model/`
 
-**Manual alternative:** [Download from OneDrive](https://binusianorg-my.sharepoint.com/personal/kus_andriadi_binus_ac_id/_layouts/15/guestaccess.aspx?share=EnNjotrV4F1Gp4RR3KVyXggB2y7v8tz3T2cxcbCqtzL5yA&e=UHQUPT)
-
----
+Manual alternative: [Download from OneDrive](https://binusianorg-my.sharepoint.com/personal/kus_andriadi_binus_ac_id/_layouts/15/guestaccess.aspx?share=EnNjotrV4F1Gp4RR3KVyXggB2y7v8tz3T2cxcbCqtzL5yA&e=UHQUPT)
 
 ### 2. Run with Docker
 
@@ -38,109 +22,110 @@ Downloads `REAL-ESRGAN.pth` and `ConvNext_REAL-ESRGAN.pth` to `backend/model/`
 docker-compose up -d --build
 ```
 
-Access:
 - Frontend: http://localhost
 - API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
----
-
-## 🐳 VPS Deployment
-
-### Deploy to Internet
+### 3. Run Locally (no Docker)
 
 ```bash
-# 1. Download models
-scripts/download-models.sh
+python run_all.py
+```
 
-# 2. Deploy with SSL
+Sets up a venv, installs deps, starts backend (FastAPI) and frontend (static server), opens browser.
+
+---
+
+## VPS Deployment
+
+```bash
+# Deploy with SSL
 scripts/deploy.sh example.com admin@example.com
-```
 
-Result: Application live at `https://example.com` (~20 minutes)
-
----
-
-### Update After Changes
-
-```bash
+# Update after code changes
 scripts/restart.sh
-```
 
-Result: Latest code deployed (~2-5 minutes)
-
----
-
-### Stop Application
-
-```bash
+# Stop
 scripts/stop.sh
-```
 
----
-
-### Check Status & Resources
-
-```bash
+# Status dashboard
 scripts/info.sh
-```
 
-Shows:
-- Application status (running/stopped)
-- Uptime
-- CPU & Memory usage (MB)
-- Storage usage (GB)
-- Network ports
-- Health check
+# Live logs
+scripts/logs.sh
+```
 
 ---
 
-## 📁 Project Structure
+## Configuration
+
+All settings live in `config.json`. Environment variables override any value using uppercase + underscores (e.g., `backend.model.device` -> `BACKEND_MODEL_DEVICE`).
+
+Key settings:
+
+| Setting | Default | Description |
+|---|---|---|
+| `backend.model.device` | `"auto"` | `auto`, `cpu`, or `cuda` |
+| `backend.upload.max_size_mb` | `10` | Max upload size in MB |
+| `backend.jobs.max_concurrent` | `2` | Max parallel processing jobs |
+| `backend.cleanup.interval_hours` | `1` | Cleanup interval |
+| `backend.cleanup.max_age_hours` | `1` | Max file age before deletion |
+| `frontend.polling.interval_ms` | `800` | Job status polling interval |
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/reconstructions` | Upload image and create reconstruction job |
+| `GET` | `/api/reconstructions/{id}` | Get job status and progress |
+| `DELETE` | `/api/reconstructions/{id}` | Cancel a running job |
+| `GET` | `/api/reconstructions/{id}/result` | Download reconstructed image |
+| `GET` | `/api/health` | Health check |
+| `GET` | `/api/config` | Frontend configuration |
+
+---
+
+## Project Structure
 
 ```
 image-reconstruction/
-├── scripts/
-│   ├── deploy.sh           # Deploy to VPS with SSL
-│   ├── restart.sh          # Update & restart
-│   ├── stop.sh             # Stop services
-│   ├── info.sh             # Show status & resources
-│   └── download-models.sh  # Download model files
-├── backend/                # FastAPI backend
-│   └── model/              # Model files (.pth)
-├── frontend/               # Static web interface
-└── config.json             # Configuration
+├── config.json              # All settings (single source of truth)
+├── run_all.py               # Local dev runner
+├── Dockerfile               # Backend container
+├── docker-compose.yml       # Backend + Nginx frontend
+├── nginx.conf               # Reverse proxy + security
+├── backend/
+│   ├── app.py               # FastAPI app + routes
+│   ├── config.py            # Config dataclass
+│   ├── config_loader.py     # JSON config reader
+│   ├── logger.py            # Logging setup
+│   ├── model/               # .pth model files
+│   ├── models/              # PyTorch model architectures
+│   └── services/
+│       ├── reconstructor.py # Model loading + inference
+│       ├── jobs.py          # Job queue manager
+│       ├── cleanup.py       # Background file cleanup
+│       └── validators.py    # Upload validation
+├── frontend/
+│   ├── index.html
+│   ├── styles.css
+│   └── script.js
+└── scripts/
+    ├── deploy.sh            # VPS deployment with SSL
+    ├── restart.sh           # Git pull + rebuild
+    ├── stop.sh              # Graceful shutdown
+    ├── info.sh              # Status dashboard
+    ├── logs.sh              # Live log viewer
+    └── download-models.sh   # Download model files
 ```
 
 ---
 
-## ⚙️ Configuration
+## Tech Stack
 
-Edit `config.json`:
-
-```json
-{
-  "backend": {
-    "port": 8000,
-    "model": {
-      "device": "auto"
-    },
-    "upload": {
-      "max_size_mb": 20
-    }
-  },
-  "frontend": {
-    "backend_url": "http://localhost:8000"
-  }
-}
-```
-
-See **[CONFIG.md](CONFIG.md)** for all options.
-
----
-
-## 📝 Tech Stack
-
-- **Backend:** Python 3.10+, FastAPI, PyTorch
-- **Frontend:** HTML5, JavaScript, CSS3
+- **Backend:** Python 3.10+, FastAPI, PyTorch, Uvicorn
+- **Frontend:** HTML, CSS, JavaScript (no framework)
 - **Deployment:** Docker, Docker Compose, Nginx
-- **Models:** REAL-ESRGAN, ConvNext REAL-ESRGAN
+- **Models:** REAL-ESRGAN (4x upscale), ConvNext REAL-ESRGAN (4x upscale)

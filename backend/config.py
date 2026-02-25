@@ -60,10 +60,19 @@ class Config:
     models_dir: Path
     jobs_dir: Path
     model_path: Path
-    allowed_origins: List[str]
+    app_name: str = "Image Reconstruction API"
+    app_version: str = "1.0.0"
+    app_description: str = "Image reconstruction service using PyTorch models"
+    model_device: str = "auto"
+    allowed_origins: List[str] = field(default_factory=lambda: ["*"])
+    cors_allow_credentials: bool = True
+    cors_allow_methods: List[str] = field(default_factory=lambda: ["*"])
+    cors_allow_headers: List[str] = field(default_factory=lambda: ["*"])
     max_upload_mb: float = 10.0
     allowed_mime: Set[str] = field(default_factory=lambda: {"image/png", "image/jpeg", "image/jpg", "image/webp"})
     allowed_ext: Set[str] = field(default_factory=lambda: {".png", ".jpg", ".jpeg", ".webp"})
+    max_concurrent_jobs: int = 2
+    jobs_busy_message: str = "Server is currently processing {max_concurrent} images. Please wait a moment and try again."
     cleanup_enabled: bool = True
     cleanup_interval_hours: float = 1.0
     cleanup_max_age_hours: float = 1.0
@@ -82,7 +91,7 @@ class Config:
         """Get the default model filename from the configured model path.
 
         Returns:
-            Model filename (e.g., "ConvNext_REAL-ESRGAN_X4.pth").
+            Model filename (e.g., "ConvNext_REAL-ESRGAN.pth").
         """
         return self.model_path.name
 
@@ -134,6 +143,11 @@ class Config:
         loader = get_config_loader()
         base_dir = Path(__file__).resolve().parent
 
+        # Read app metadata
+        app_name = loader.get("app.name", "Image Reconstruction API")
+        app_version = loader.get("app.version", "1.0.0")
+        app_description = loader.get("app.description", "Image reconstruction service using PyTorch models")
+
         # Read directory paths from config
         data_dir_rel = loader.get("backend.directories.data_dir", "backend/data")
         uploads_dir_rel = loader.get("backend.directories.uploads_dir", "backend/data/uploads")
@@ -155,12 +169,16 @@ class Config:
             d.mkdir(parents=True, exist_ok=True)
             logger.debug(f"  ✓ {d}")
 
-        # Read model path from config
+        # Read model path and device from config
         model_path_str = loader.get("backend.model.path", "backend/data/models/model.pth")
         model_path = project_root / model_path_str
+        model_device = loader.get("backend.model.device", "auto")
 
-        # Read CORS origins
+        # Read CORS configuration
         allowed_origins = loader.get("backend.cors.allowed_origins", ["*"])
+        cors_allow_credentials = loader.get("backend.cors.allow_credentials", True)
+        cors_allow_methods = loader.get("backend.cors.allow_methods", ["*"])
+        cors_allow_headers = loader.get("backend.cors.allow_headers", ["*"])
 
         # Read upload constraints
         max_upload_mb = float(loader.get("backend.upload.max_size_mb", 10))
@@ -171,16 +189,23 @@ class Config:
             ".png", ".jpg", ".jpeg", ".webp"
         ])
 
+        # Read jobs configuration
+        max_concurrent_jobs = int(loader.get("backend.jobs.max_concurrent", 2))
+        jobs_busy_message = loader.get("backend.jobs.busy_message", "Server is currently processing {max_concurrent} images. Please wait a moment and try again.")
+
         # Read cleanup configuration
         cleanup_enabled = loader.get("backend.cleanup.enabled", True)
         cleanup_interval_hours = float(loader.get("backend.cleanup.interval_hours", 1.0))
         cleanup_max_age_hours = float(loader.get("backend.cleanup.max_age_hours", 1.0))
 
         logger.info(f"Configuration loaded successfully")
+        logger.info(f"  App: {app_name} v{app_version}")
         logger.info(f"  Model path: {model_path}")
+        logger.info(f"  Model device: {model_device}")
         logger.info(f"  Max upload size: {max_upload_mb}MB")
         logger.info(f"  CORS origins: {allowed_origins}")
         logger.info(f"  Allowed extensions: {allowed_ext_list}")
+        logger.info(f"  Max concurrent jobs: {max_concurrent_jobs}")
         logger.info(f"  Cleanup enabled: {cleanup_enabled}")
         logger.info(f"  Cleanup interval: {cleanup_interval_hours}h")
         logger.info(f"  Cleanup max age: {cleanup_max_age_hours}h")
@@ -193,10 +218,19 @@ class Config:
             models_dir=models_dir,
             jobs_dir=jobs_dir,
             model_path=model_path,
+            app_name=app_name,
+            app_version=app_version,
+            app_description=app_description,
+            model_device=model_device,
             allowed_origins=allowed_origins,
+            cors_allow_credentials=cors_allow_credentials,
+            cors_allow_methods=cors_allow_methods,
+            cors_allow_headers=cors_allow_headers,
             max_upload_mb=max_upload_mb,
             allowed_mime=set(allowed_mime_list),
             allowed_ext=set(allowed_ext_list),
+            max_concurrent_jobs=max_concurrent_jobs,
+            jobs_busy_message=jobs_busy_message,
             cleanup_enabled=cleanup_enabled,
             cleanup_interval_hours=cleanup_interval_hours,
             cleanup_max_age_hours=cleanup_max_age_hours,

@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -54,19 +55,22 @@ class Reconstructor:
         ... )
     """
 
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, device: str = "auto"):
         """Initialize the reconstructor with model path and device selection.
 
         Args:
             model_path: Path to the PyTorch model file (.pt or .pth format).
+            device: Device to use for inference ("auto", "cpu", or "cuda").
+                    Environment variable DEVICE overrides this value.
         """
         logger.info(f"Initializing Reconstructor with model path: {model_path}")
         self.model_path = str(model_path)
         self.model_loaded = False
         self.model: Optional[object] = None
+        self._lock = threading.Lock()
 
-        # Device selection: environment variable DEVICE or automatic
-        requested = os.getenv("DEVICE", None)
+        # Device selection: environment variable DEVICE > config device > auto-detect
+        requested = os.getenv("DEVICE", device)
         if TORCH_AVAILABLE:
             if requested in ("cuda", "cpu"):
                 if requested == "cuda" and not torch.cuda.is_available():
@@ -79,7 +83,21 @@ class Reconstructor:
         else:
             self.device = "cpu"
 
-        logger.info(f"Device selected: {self.device}")
+        logger.info(f"Device selected: {self.device} (requested: {requested})")
+
+        # Check model availability on startup
+        if not self.model_file_exists:
+            logger.warning(f"MODEL NOT FOUND: {self.model_path} — reconstructions will fail until model is downloaded")
+
+    @property
+    def model_file_exists(self) -> bool:
+        """Check if the configured model file exists on disk."""
+        return Path(self.model_path).exists()
+
+    @property
+    def model_available(self) -> bool:
+        """Check if model can be used for reconstruction (torch + file exist)."""
+        return TORCH_AVAILABLE and self.model_file_exists
 
     def _lazy_load(self, progress: Optional[Callable[[int, str], None]] = None):
         """Lazily load the PyTorch model on first use.
@@ -263,18 +281,9 @@ class Reconstructor:
             ...     "output.png",
             ...     progress=track_progress,
             ...     cancelled=is_cancelled,
-            ...     model_path="backend/model/REAL-ESRGAN_X4.pth"
+            ...     model_path="backend/model/REAL-ESRGAN.pth"
             ... )
         """
-        # If a different model path is provided, reload the model
-        if model_path and model_path != self.model_path:
-            logger.warning(f"🔄 MODEL SWITCH: {self.model_path} -> {model_path}")
-            self.model_path = model_path
-            self.model_loaded = False
-            self.model = None
-        else:
-            logger.info(f"📦 Using model: {self.model_path}")
-
         def step(pct: int, msg: str):
             """Internal helper to report progress and check cancellation."""
             if progress:
@@ -285,54 +294,64 @@ class Reconstructor:
 
         logger.info(f"Starting reconstruction: {input_path} -> {output_path}")
 
-        # Load model lazily on first use
-        self._lazy_load(progress)
+        with self._lock:
+            # If a different model path is provided, reload the model
+            if model_path and model_path != self.model_path:
+                logger.warning(f"🔄 MODEL SWITCH: {self.model_path} -> {model_path}")
+                self.model_path = model_path
+                self.model_loaded = False
+                self.model = None
+            else:
+                logger.info(f"📦 Using model: {self.model_path}")
 
-        # Read and convert input image to RGB
-        step(20, "reading input")
-        logger.debug(f"Reading input image: {input_path}")
-        img = Image.open(input_path).convert("RGB")
-        logger.debug(f"Input image size: {img.size}")
+            # Load model lazily on first use
+            self._lazy_load(progress)
 
-        # Preprocess image into tensor
-        step(35, "preprocessing")
-        logger.debug("Preprocessing image to tensor")
-        tensor = None
-        if TORCH_AVAILABLE:
-            import torchvision.transforms as T  # type: ignore
-            transform = T.Compose([T.ToTensor()])
-            tensor = transform(img).unsqueeze(0)
-            try:
-                tensor = tensor.to(self.device)
-                logger.debug(f"Tensor moved to {self.device}, shape: {tensor.shape}")
-            except Exception as e:
-                logger.warning(f"Failed to move tensor to device: {e}")
-                # If device transfer fails, keep on CPU
-                pass
+            # Read and convert input image to RGB
+            step(20, "reading input")
+            logger.debug(f"Reading input image: {input_path}")
+            img = Image.open(input_path).convert("RGB")
+            logger.debug(f"Input image size: {img.size}")
 
-        # Run model inference
-        step(70, "running model")
-        if TORCH_AVAILABLE and self.model is not None and tensor is not None:
-            logger.info("Running model inference")
-            with torch.no_grad():
-                out = self.model(tensor)
-            logger.debug("Model inference complete")
-            # Normalize output into PIL Image
-            if isinstance(out, (list, tuple)):
-                out = out[0]
-            if hasattr(out, "detach"):
-                out = out.detach().cpu().squeeze(0)
-            # Clamp values to [0, 1] range to prevent artifacts
-            out = torch.clamp(out, 0, 1)
-            logger.debug(f"Output tensor range: [{out.min():.4f}, {out.max():.4f}]")
-            out_img = T.ToPILImage()(out)
-            logger.debug(f"Output image size: {out_img.size}")
-        else:
-            # Fallback: no model available, return input image (pass-through)
-            logger.info("Using pass-through mode (no model)")
-            out_img = img
+            # Preprocess image into tensor
+            step(35, "preprocessing")
+            logger.debug("Preprocessing image to tensor")
+            tensor = None
+            if TORCH_AVAILABLE:
+                import torchvision.transforms as T  # type: ignore
+                transform = T.Compose([T.ToTensor()])
+                tensor = transform(img).unsqueeze(0)
+                try:
+                    tensor = tensor.to(self.device)
+                    logger.debug(f"Tensor moved to {self.device}, shape: {tensor.shape}")
+                except Exception as e:
+                    logger.warning(f"Failed to move tensor to device: {e}")
+                    # If device transfer fails, keep on CPU
+                    pass
 
-        # Save reconstructed image
+            # Run model inference
+            step(70, "running model")
+            if TORCH_AVAILABLE and self.model is not None and tensor is not None:
+                logger.info("Running model inference")
+                with torch.no_grad():
+                    out = self.model(tensor)
+                logger.debug("Model inference complete")
+                # Normalize output into PIL Image
+                if isinstance(out, (list, tuple)):
+                    out = out[0]
+                if hasattr(out, "detach"):
+                    out = out.detach().cpu().squeeze(0)
+                # Clamp values to [0, 1] range to prevent artifacts
+                out = torch.clamp(out, 0, 1)
+                logger.debug(f"Output tensor range: [{out.min():.4f}, {out.max():.4f}]")
+                out_img = T.ToPILImage()(out)
+                logger.debug(f"Output image size: {out_img.size}")
+            else:
+                # Fallback: no model available, return input image (pass-through)
+                logger.info("Using pass-through mode (no model)")
+                out_img = img
+
+        # Save reconstructed image (outside lock - no shared state)
         step(90, "writing output")
         logger.debug(f"Saving output to: {output_path}")
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)

@@ -54,12 +54,16 @@ class BackendApp:
         """
         logger.info("Initializing BackendApp")
         self.config = config
-        self.app = FastAPI(title="Image Reconstruction API")
+        self.app = FastAPI(
+            title=config.app_name,
+            version=config.app_version,
+            description=config.app_description,
+        )
         self._configure_cors()
 
         # Core services - dependency injection
         logger.info("Initializing core services")
-        self.reconstructor = Reconstructor(model_path=str(self.config.model_path))
+        self.reconstructor = Reconstructor(model_path=str(self.config.model_path), device=self.config.model_device)
         self.jobs = JobManager(
             reconstructor=self.reconstructor,
             uploads_dir=str(self.config.uploads_dir),
@@ -67,6 +71,7 @@ class BackendApp:
             jobs_dir=str(self.config.jobs_dir),
             model_dir=str(self.config.model_dir),
             default_model_filename=self.config.default_model_filename,
+            max_concurrent_jobs=self.config.max_concurrent_jobs,
         )
         self.validator = UploadValidator(
             allowed_mime=self.config.allowed_mime,
@@ -85,6 +90,16 @@ class BackendApp:
 
         self._register_routes()
         self._register_lifecycle_events()
+
+        # Startup model availability warning
+        if not self.reconstructor.model_available:
+            logger.warning("=" * 60)
+            logger.warning("WARNING: Model file not found!")
+            logger.warning(f"  Expected: {self.config.model_path}")
+            logger.warning("  Run: scripts/download-models.sh")
+            logger.warning("  Reconstructions will be rejected until model is available.")
+            logger.warning("=" * 60)
+
         logger.info("BackendApp initialization complete")
 
     def _configure_cors(self) -> None:
@@ -96,9 +111,9 @@ class BackendApp:
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=self.config.allowed_origins,
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_credentials=self.config.cors_allow_credentials,
+            allow_methods=self.config.cors_allow_methods,
+            allow_headers=self.config.cors_allow_headers,
         )
 
     def _register_lifecycle_events(self) -> None:
@@ -123,16 +138,16 @@ class BackendApp:
         """Register all API endpoints with the FastAPI application.
 
         Defines the following endpoints:
-        - POST /api/jobs: Create a new reconstruction job
-        - GET /api/jobs/{job_id}: Get job status and progress
-        - DELETE /api/jobs/{job_id}: Cancel a running job
-        - GET /api/jobs/{job_id}/result: Download reconstructed image
+        - POST /api/reconstructions: Create a new reconstruction job
+        - GET /api/reconstructions/{job_id}: Get job status and progress
+        - DELETE /api/reconstructions/{job_id}: Cancel a running job
+        - GET /api/reconstructions/{job_id}/result: Download reconstructed image
         - GET /api/health: Health check endpoint
         """
         app = self.app
         default_model = self.config.default_model_filename
 
-        @app.post("/api/jobs")
+        @app.post("/api/reconstructions")
         async def create_job(file: UploadFile = File(...), model: str = default_model):
             """Create a new image reconstruction job.
 
@@ -151,8 +166,24 @@ class BackendApp:
                 HTTPException 415: Unsupported media type
                 HTTPException 500: Internal server error during processing
             """
+            # Reject early if model is not available
+            if not self.reconstructor.model_available:
+                logger.warning("API: Rejected job - model not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail="Model not available. Please download the model files first. See README for instructions.",
+                )
+
+            # Reject early if at capacity (before reading the upload)
+            if self.jobs.is_full():
+                msg = self.config.jobs_busy_message.replace(
+                    "{max_concurrent}", str(self.config.max_concurrent_jobs)
+                )
+                logger.warning(f"API: Rejected job - server busy ({self.config.max_concurrent_jobs} jobs running)")
+                raise HTTPException(status_code=429, detail=msg)
+
             job_id = uuid.uuid4().hex
-            logger.info(f"API: POST /api/jobs - Creating job {job_id} with model {model}")
+            logger.info(f"API: POST /api/reconstructions - Creating job {job_id} with model {model}")
             try:
                 upload_path = await self.validator.save(job_id, file)
                 self.jobs.enqueue(job_id=job_id, input_path=str(upload_path), model_filename=model)
@@ -161,11 +192,19 @@ class BackendApp:
             except HTTPException as e:
                 logger.warning(f"API: Job {job_id} creation failed: {e.detail}")
                 raise
+            except RuntimeError as e:
+                # Race condition: capacity filled between is_full() check and enqueue()
+                if "max_concurrent" in str(e):
+                    msg = self.config.jobs_busy_message.replace(
+                        "{max_concurrent}", str(self.config.max_concurrent_jobs)
+                    )
+                    raise HTTPException(status_code=429, detail=msg)
+                raise HTTPException(status_code=500, detail=str(e))
             except Exception as e:
                 logger.error(f"API: Job {job_id} creation error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @app.get("/api/jobs/{job_id}")
+        @app.get("/api/reconstructions/{job_id}")
         def get_job(job_id: str):
             """Get job status and progress information.
 
@@ -187,14 +226,14 @@ class BackendApp:
             Raises:
                 HTTPException 404: Job not found
             """
-            logger.debug(f"API: GET /api/jobs/{job_id}")
+            logger.debug(f"API: GET /api/reconstructions/{job_id}")
             job = self.jobs.get(job_id)
             if not job:
                 logger.warning(f"API: Job {job_id} not found")
                 raise HTTPException(status_code=404, detail="Job not found")
             return job
 
-        @app.delete("/api/jobs/{job_id}")
+        @app.delete("/api/reconstructions/{job_id}")
         def cancel_job(job_id: str):
             """Cancel a running or queued job.
 
@@ -209,7 +248,7 @@ class BackendApp:
             Raises:
                 HTTPException 404: Job not found or already finished
             """
-            logger.info(f"API: DELETE /api/jobs/{job_id} - Cancel requested")
+            logger.info(f"API: DELETE /api/reconstructions/{job_id} - Cancel requested")
             ok = self.jobs.cancel(job_id)
             if not ok:
                 logger.warning(f"API: Cannot cancel job {job_id}")
@@ -217,7 +256,7 @@ class BackendApp:
             logger.info(f"API: Job {job_id} cancelled")
             return {"cancelled": True}
 
-        @app.get("/api/jobs/{job_id}/result")
+        @app.get("/api/reconstructions/{job_id}/result")
         def get_result(job_id: str):
             """Download the reconstructed image result.
 
@@ -234,7 +273,7 @@ class BackendApp:
                 HTTPException 409: Job not completed yet (still queued/running)
                 HTTPException 500: Result file missing or corrupted
             """
-            logger.info(f"API: GET /api/jobs/{job_id}/result")
+            logger.info(f"API: GET /api/reconstructions/{job_id}/result")
             meta = self.jobs.get(job_id)
             if not meta:
                 logger.warning(f"API: Job {job_id} not found for result download")
@@ -268,6 +307,7 @@ class BackendApp:
             return {
                 "status": "ok",
                 "model_loaded": self.reconstructor.model_loaded,
+                "model_available": self.reconstructor.model_available,
                 "device": self.reconstructor.device,
             }
 

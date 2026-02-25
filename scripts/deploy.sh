@@ -135,14 +135,14 @@ echo ""
 ################################################################################
 print_info "[5/11] Checking model files..."
 MODEL_FOUND=false
-if [ -f "backend/model/REAL-ESRGAN_X4.pth" ] && [ -f "backend/model/ConvNext_REAL-ESRGAN_X4.pth" ]; then
+if [ -f "backend/model/REAL-ESRGAN.pth" ] && [ -f "backend/model/ConvNext_REAL-ESRGAN.pth" ]; then
     MODEL_FOUND=true
     print_success "Model files found"
 else
     print_warning "Model files not found!"
     print_warning "Please upload these files to backend/model/:"
-    echo "  - REAL-ESRGAN_X4.pth"
-    echo "  - ConvNext_REAL-ESRGAN_X4.pth"
+    echo "  - REAL-ESRGAN.pth"
+    echo "  - ConvNext_REAL-ESRGAN.pth"
     echo ""
     read -p "Continue without model files? (y/N) " -n 1 -r
     echo ""

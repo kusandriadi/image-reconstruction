@@ -53,7 +53,7 @@ class JobManager:
         >>> manager.cancel("abc123")
     """
 
-    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN_X4.pth"):
+    def __init__(self, reconstructor: Reconstructor, uploads_dir: str, outputs_dir: str, jobs_dir: str = None, model_dir: str = "backend/model", default_model_filename: str = "ConvNext_REAL-ESRGAN.pth", max_concurrent_jobs: int = 2):
         """Initialize the job manager.
 
         Args:
@@ -63,6 +63,7 @@ class JobManager:
             jobs_dir: Directory path where job metadata is persisted (optional).
             model_dir: Directory path containing model files.
             default_model_filename: Default model filename from config.
+            max_concurrent_jobs: Maximum number of jobs that can run in parallel.
         """
         logger.info("Initializing JobManager")
         self.reconstructor = reconstructor
@@ -71,8 +72,10 @@ class JobManager:
         self.jobs_dir = jobs_dir or str(Path(outputs_dir).parent / "jobs")
         self.model_dir = model_dir
         self.default_model_filename = default_model_filename
+        self.max_concurrent_jobs = max_concurrent_jobs
         self._jobs: Dict[str, Dict] = {}
         self._lock = threading.Lock()
+        self._running_count = 0
 
         # Create jobs directory if it doesn't exist
         Path(self.jobs_dir).mkdir(parents=True, exist_ok=True)
@@ -139,6 +142,15 @@ class JobManager:
         # Persist to disk after every update
         self._save_job(job_id)
 
+    def is_full(self) -> bool:
+        """Check if the maximum number of concurrent jobs is reached.
+
+        Returns:
+            True if no more jobs can be accepted, False otherwise.
+        """
+        with self._lock:
+            return self._running_count >= self.max_concurrent_jobs
+
     def enqueue(self, job_id: str, input_path: str, model_filename: str = None):
         """Create and enqueue a new reconstruction job.
 
@@ -151,16 +163,27 @@ class JobManager:
             input_path: Full path to the uploaded input image file.
             model_filename: Filename of the model to use (defaults to configured model).
 
+        Raises:
+            RuntimeError: If the maximum number of concurrent jobs is reached.
+
         Example:
             >>> manager.enqueue(
             ...     job_id="abc123",
             ...     input_path="/uploads/abc123_photo.png",
-            ...     model_filename="REAL-ESRGAN_X4.pth"
+            ...     model_filename="REAL-ESRGAN.pth"
             ... )
         """
         if model_filename is None:
             model_filename = self.default_model_filename
-        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename}")
+
+        # Reject if at capacity
+        with self._lock:
+            if self._running_count >= self.max_concurrent_jobs:
+                logger.warning(f"Job {job_id} rejected: {self._running_count}/{self.max_concurrent_jobs} slots in use")
+                raise RuntimeError(f"max_concurrent:{self.max_concurrent_jobs}")
+            self._running_count += 1
+
+        logger.info(f"Enqueueing job {job_id}: {input_path} with model {model_filename} ({self._running_count}/{self.max_concurrent_jobs} slots)")
         with self._lock:
             self._jobs[job_id] = {
                 "job_id": job_id,
@@ -299,4 +322,8 @@ class JobManager:
             elapsed = time.time() - start_time
             self._update(job_id, status="failed", message="failed", error=str(e), elapsed_seconds=round(elapsed, 2))
             logger.error(f"Job {job_id}: Failed after {elapsed:.2f} seconds with error: {e}", exc_info=True)
+        finally:
+            with self._lock:
+                self._running_count -= 1
+            logger.info(f"Job {job_id}: Released slot ({self._running_count}/{self.max_concurrent_jobs} in use)")
 
