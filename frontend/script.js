@@ -74,7 +74,7 @@ function applyUIConfig() {
     if (h1) h1.textContent = appConfig.ui.title;
   }
 
-  // Update labels
+  // Update labels (preserve SVG icons inside buttons)
   if (appConfig.ui?.labels) {
     const inputLabel = document.querySelector('label[class="label"]:first-of-type');
     if (inputLabel) inputLabel.textContent = appConfig.ui.labels.input;
@@ -82,9 +82,20 @@ function applyUIConfig() {
     const outputLabel = document.querySelector('label[class="label"]:last-of-type');
     if (outputLabel) outputLabel.textContent = appConfig.ui.labels.output;
 
-    if (okBtn) okBtn.textContent = appConfig.ui.labels.ok_button;
-    if (cancelBtn) cancelBtn.textContent = appConfig.ui.labels.cancel_button;
-    if (downloadLink) downloadLink.textContent = appConfig.ui.labels.download_button;
+    // Update button text without removing SVG icons
+    const setBtnText = (btn, text) => {
+      if (!btn) return;
+      const textNodes = [...btn.childNodes].filter(n => n.nodeType === Node.TEXT_NODE);
+      if (textNodes.length) {
+        textNodes.forEach(n => n.textContent = '');
+        textNodes[textNodes.length - 1].textContent = ' ' + text;
+      } else {
+        btn.append(' ' + text);
+      }
+    };
+    setBtnText(okBtn, appConfig.ui.labels.ok_button);
+    setBtnText(cancelBtn, appConfig.ui.labels.cancel_button);
+    setBtnText(downloadLink, appConfig.ui.labels.download_button);
   }
 
   // Update file input accept attribute
@@ -391,7 +402,7 @@ async function init() {
   await loadConfig();
   resetUI();
   await checkHealth();
-  console.log('Image Reconstruction UI initialized with config:', appConfig);
+  console.log('PixUp initialized with config:', appConfig);
 }
 
 // Run initialization

@@ -51,7 +51,7 @@
   },
   "frontend": {
     "port": 5173,
-    "backend_url": "http://localhost:8000",
+    "backend_url": "https://pixup.id",
     "auto_open_browser": true,
     "file_input": {
       "accept": "image/*"
@@ -62,11 +62,11 @@
     },
     "ui": {
       "title": "Image Reconstruction",
-      "enable_model_selection": true,
+      "enable_model_selection": false,
       "labels": {
         "input": "Input Image",
         "output": "Output",
-        "ok_button": "OK",
+        "ok_button": "Submit",
         "cancel_button": "Cancel",
         "download_button": "Download Result"
       },

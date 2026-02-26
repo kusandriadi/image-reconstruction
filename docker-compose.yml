@@ -1,62 +1,32 @@
 services:
-  # Backend API service
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: image-reconstruction-backend
-    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
-      # Persist uploaded and output images
-      - ./backend/data/uploads:/app/backend/data/uploads
-      - ./backend/data/outputs:/app/backend/data/outputs
-      # Mount models directory
+      - ./backend/data:/app/backend/data
       - ./backend/model:/app/backend/model:ro
-      # Mount config for easy updates
       - ./config.json:/app/config.json:ro
     environment:
-      # Override these in production
-      - BACKEND_HOST=0.0.0.0
-      - BACKEND_PORT=8000
-      # Use CPU by default, set to 'cuda' if GPU available
-      - BACKEND_MODEL_DEVICE=cpu
-      # Logging
-      - LOGGING_LEVEL=INFO
-    networks:
-      - image-reconstruction-network
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
 
-  # Frontend static server with Nginx
   frontend:
     image: nginx:alpine
-    container_name: image-reconstruction-frontend
-    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
-    networks:
-      - image-reconstruction-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-networks:
-  image-reconstruction-network:
-    driver: bridge
-
-volumes:
-  uploads:
-  outputs:
+    restart: unless-stopped

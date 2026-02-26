@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a1a" />
   <title>Image Reconstruction</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="container">
     <header class="header">
       <h1>Image Reconstruction</h1>
+      <p class="subtitle">AI-Powered Image Upscaler</p>
     </header>
 
     <div id="warningBanner" class="warning-banner hidden">
@@ -29,6 +32,11 @@
 
       <div id="dropZone" class="drop-zone">
         <div class="drop-zone-content">
+          <svg class="drop-zone-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
           <div class="drop-zone-text">
             <span class="drop-zone-title">Drop your image here</span>
             <span class="drop-zone-subtitle">or click to browse</span>
@@ -39,9 +47,18 @@
       </div>
 
       <div class="buttons">
-        <button id="okBtn" class="btn btn-primary" disabled>Process Image</button>
-        <button id="cancelBtn" class="btn btn-secondary" disabled>Cancel</button>
-        <button id="resetBtn" class="btn btn-reset hidden">Reset</button>
+        <button id="okBtn" class="btn btn-primary" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+          Submit
+        </button>
+        <button id="cancelBtn" class="btn btn-secondary" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          Cancel
+        </button>
+        <button id="resetBtn" class="btn btn-reset hidden">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+          Reset
+        </button>
       </div>
 
       <div id="progress" class="progress hidden">
@@ -56,17 +73,23 @@
       <div id="status" class="status"></div>
 
       <div id="outputPlaceholder" class="output-placeholder">
-        <p>Your processed image will appear here</p>
+        <p>Your enhanced image will appear here</p>
       </div>
 
       <img id="preview" class="preview hidden" alt="Output preview" />
-      <a id="downloadLink" class="btn btn-download hidden" href="#" download>Download Result</a>
+      <a id="downloadLink" class="btn btn-download hidden" href="#" download>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+        Download Result
+      </a>
     </div>
+
+    <footer class="footer">
+      Powered by REAL-ESRGAN
+    </footer>
   </main>
 
   <script src="script.js"></script>
   <script>
-    // Allow localStorage to override backend URL if set
     window.BACKEND_BASE = localStorage.getItem('BACKEND_BASE');
   </script>
 </body>
